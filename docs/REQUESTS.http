@@ -1,0 +1,9 @@
+@base = http://localhost:5078
+@adminKey = kelly
+
+### Health
+GET {{base}}/health
+
+### Admin list
+GET {{base}}/api/admin/submissions
+X-Admin-Key: {{adminKey}}

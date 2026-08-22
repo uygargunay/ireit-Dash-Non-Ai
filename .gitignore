@@ -1,0 +1,7 @@
+**/bin/
+**/obj/
+src/IreiMvp.Web/App_Data/
+.vs/
+.idea/
+*.user
+*.suo

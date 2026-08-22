@@ -1,0 +1,12 @@
+services:
+  irei-mvp:
+    build: .
+    ports:
+      - "5078:8080"
+    environment:
+      Irei__AdminKey: "kelly"
+    volumes:
+      - irei-submissions:/app/App_Data
+
+volumes:
+  irei-submissions:

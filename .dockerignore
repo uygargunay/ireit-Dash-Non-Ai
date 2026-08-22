@@ -1,0 +1,6 @@
+**/bin/
+**/obj/
+src/IreiMvp.Web/App_Data/
+.git/
+.vs/
+.idea/

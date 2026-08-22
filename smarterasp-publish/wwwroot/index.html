@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IREIC Portfolio Readiness</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"><span></span><span></span></div>
+        <div>
+          <div class="brand-name">IREIC</div>
+          <div class="brand-tag">Impact. Real Estate.<br>Built to Last.</div>
+        </div>
+      </div>
+
+      <nav id="nav" class="nav" aria-label="Dashboard pages">
+        <button type="button" data-page="upload" class="active"><span>⌂</span> Upload & Process</button>
+        <button type="button" data-page="summary"><span>▣</span> Executive Summary</button>
+        <button type="button" data-page="portfolio"><span>▦</span> Portfolio Overview</button>
+        <button type="button" data-page="financial"><span>▥</span> Financial Performance</button>
+        <button type="button" data-page="readiness"><span>◈</span> Readiness & Risk</button>
+        <button type="button" data-page="mission"><span>♥</span> Mission & Affordability</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="secure-dot" aria-hidden="true"></div>
+        <div>
+          <strong>Organization View</strong>
+          <small>Generated workbook remains private</small>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">IREI STAGE 1 MVP</div>
+          <h1 id="page-title">Excel Intake & Standardization</h1>
+        </div>
+        <div class="confidential">🔒 Confidential working environment</div>
+      </header>
+
+      <section id="content" class="content"></section>
+    </main>
+  </div>
+
+  <template id="upload-template">
+    <div class="upload-layout">
+      <section class="panel upload-panel">
+        <div class="section-kicker">START A PRIVATE REVIEW</div>
+        <h2>Upload the organization’s Excel workbook</h2>
+        <p class="lead">The system maps source data into the private IREI template, creates a first-pass readiness view and keeps unresolved items visible for human review.</p>
+
+        <form id="upload-form">
+          <label class="field">
+            <span>Organization name</span>
+            <input id="organization-name" name="organizationName" placeholder="Example Housing Society" autocomplete="organization">
+          </label>
+
+          <label class="drop-zone" id="drop-zone">
+            <input id="file-input" type="file" name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            <span class="drop-icon">⇧</span>
+            <strong>Choose or drop an .xlsx workbook</strong>
+            <small id="selected-file">Maximum 50 MB</small>
+          </label>
+
+          <div class="button-row">
+            <button class="primary" type="submit">Process workbook</button>
+          </div>
+        </form>
+
+        <div id="processing" class="processing hidden" role="status">
+          <div class="spinner" aria-hidden="true"></div>
+          <div>
+            <strong>Building the private IREI workbook</strong>
+            <p>Profiling sheets, mapping fields, applying business rules and producing the dashboard.</p>
+          </div>
+        </div>
+
+        <div id="error-box" class="alert error hidden" role="alert"></div>
+      </section>
+
+      <section class="panel process-panel">
+        <h3>How the MVP handles the file</h3>
+        <div class="process-step"><b>1</b><div><strong>Profile</strong><span>Find sheets, headers, formulas and candidate source tables.</span></div></div>
+        <div class="process-step"><b>2</b><div><strong>Map</strong><span>Use deterministic rules and optional AI suggestions.</span></div></div>
+        <div class="process-step"><b>3</b><div><strong>Standardize</strong><span>Write into the private IREI blank template.</span></div></div>
+        <div class="process-step"><b>4</b><div><strong>Review</strong><span>Keep assumptions, conflicts and missing evidence visible.</span></div></div>
+        <div class="process-step"><b>5</b><div><strong>Share selectively</strong><span>The participant sees this dashboard. Only authorized IREI administrators can download the generated workbook.</span></div></div>
+      </section>
+    </div>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
