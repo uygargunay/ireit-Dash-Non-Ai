@@ -33,14 +33,7 @@ public sealed class SmartMappingEngine
         @"\*([1-9]\d{0,3})\*12\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    private readonly AiMappingAdvisor _aiMappingAdvisor;
-
-    public SmartMappingEngine(AiMappingAdvisor aiMappingAdvisor)
-    {
-        _aiMappingAdvisor = aiMappingAdvisor;
-    }
-
-    public async Task<MappingBuildResult> BuildAsync(
+    public Task<MappingBuildResult> BuildAsync(
         WorkbookSnapshot source,
         WorkbookSnapshot template,
         string organizationName,
@@ -56,6 +49,41 @@ public sealed class SmartMappingEngine
         var debtTable = FindTargetTable(template, "Debt_ID", "Principal_Amount", "Source_Annual_Debt_Service");
         var flagTable = FindTargetTable(template, "Flag_ID", "Issue / Assumption", "Status");
 
+        if (source.HasSheet("DATA_PROPERTY_MASTER") &&
+            source.HasSheet("DATA_METRIC_LONG"))
+        {
+            AddCanonicalV2Mappings(result, source, template, organizationName);
+            if (!HasSourceLogRows(source))
+            {
+                AddSourceLog(
+                    result.Patches,
+                    sourceLog,
+                    originalFileName,
+                    source.Sheets.Count);
+            }
+
+            result.ReportingPeriod = ReadControlValue(source, "Reporting Fiscal Year");
+            result.SourceCutoffDate = ReadControlValue(source, "Source Cutoff Date");
+            AddOutputMetadata(
+                result.Patches,
+                template,
+                organizationName,
+                originalFileName,
+                result.ReportingPeriod);
+
+            var canonicalErrors = source.Sheets.Values
+                .SelectMany(sheet => sheet.Cells.Values)
+                .Count(cell => cell.Value is string text && text.StartsWith("#", StringComparison.Ordinal));
+            if (canonicalErrors > 0)
+            {
+                result.Warnings.Add(
+                    $"The uploaded workbook contains {canonicalErrors} cached Excel error value(s). Review the affected source formulas.");
+            }
+
+            WriteWarnings(result.Patches, flagTable, result.Warnings);
+            return Task.FromResult(result);
+        }
+
         AddSourceLog(
             result.Patches,
             sourceLog,
@@ -67,18 +95,6 @@ public sealed class SmartMappingEngine
             .Where(profile => profile is not null)
             .Cast<StatementProfile>()
             .ToList();
-
-        IReadOnlyList<MappingSuggestion> aiSuggestions =
-            Array.Empty<MappingSuggestion>();
-
-        if (statements.Count == 0)
-        {
-            aiSuggestions = await _aiMappingAdvisor.SuggestAsync(
-                source,
-                template,
-                cancellationToken);
-            result.Suggestions.AddRange(aiSuggestions);
-        }
 
         var propertyStatements = statements
             .Where(profile => !profile.IsAggregate && profile.FinancialHitCount >= 5)
@@ -170,8 +186,7 @@ public sealed class SmartMappingEngine
             AddGenericTableMappings(
                 result,
                 source,
-                template,
-                aiSuggestions);
+                template);
         }
 
         var sourceErrorCount = source.Sheets.Values
@@ -223,7 +238,7 @@ public sealed class SmartMappingEngine
 
         WriteWarnings(result.Patches, flagTable, result.Warnings);
 
-        return result;
+        return Task.FromResult(result);
     }
 
     public static int FindLikelyHeaderRow(SheetSnapshot sheet)
@@ -654,7 +669,7 @@ public sealed class SmartMappingEngine
                 ["Amount"] = amount.Value,
                 ["Cash_or_Accrual"] = "Not confirmed",
                 ["Source_File_ID"] = "SRC-002",
-                ["Review_Status"] = "AI / pattern mapped"
+                ["Review_Status"] = "Deterministic pattern mapped"
             });
 
             targetRow++;
@@ -833,11 +848,181 @@ public sealed class SmartMappingEngine
             .ToList();
     }
 
-    private static void AddGenericTableMappings(
+    private static void AddCanonicalV2Mappings(
         MappingBuildResult result,
         WorkbookSnapshot source,
         WorkbookSnapshot template,
-        IReadOnlyList<MappingSuggestion> aiSuggestions)
+        string organizationName)
+    {
+        string[] inputSheets =
+        [
+            "STG_SOURCE_INTAKE",
+            "DATA_PROPERTY_MASTER",
+            "DATA_UNIT_MIX",
+            "DATA_RENT_ROLL",
+            "DATA_OPERATING_ACTUALS",
+            "DATA_DEBT_MASTER",
+            "DATA_CASH_RESERVES",
+            "DATA_AGREEMENTS",
+            "DATA_CAPITAL_NEEDS",
+            "ASSUMPTIONS_FLAGS",
+            "DATA_DEBT_SCHEDULE",
+            "DATA_OBLIGATIONS"
+        ];
+
+        foreach (var sheetName in inputSheets)
+        {
+            if (!source.Sheets.TryGetValue(sheetName, out var sourceSheet) ||
+                !template.Sheets.TryGetValue(sheetName, out var targetSheet))
+            {
+                continue;
+            }
+
+            CopyCanonicalTable(result.Patches, sourceSheet, targetSheet);
+        }
+
+        if (source.Sheets.TryGetValue("MVP_CONTROL", out var sourceControl) &&
+            template.Sheets.TryGetValue("MVP_CONTROL", out var targetControl))
+        {
+            for (var row = 5; row <= Math.Min(sourceControl.MaxRow, 25); row++)
+            {
+                var value = sourceControl.GetValue(row, 2);
+                if (IsBlank(value))
+                {
+                    continue;
+                }
+
+                result.Patches.Add(new CellPatch
+                {
+                    Sheet = targetControl.Name,
+                    Cell = $"B{row}",
+                    Value = value
+                });
+            }
+
+            result.Patches.RemoveAll(patch =>
+                string.Equals(patch.Sheet, targetControl.Name, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(patch.Cell, "B18", StringComparison.OrdinalIgnoreCase));
+            result.Patches.Add(new CellPatch
+            {
+                Sheet = targetControl.Name,
+                Cell = "B18",
+                Value = organizationName
+            });
+        }
+    }
+
+    private static void CopyCanonicalTable(
+        List<CellPatch> patches,
+        SheetSnapshot source,
+        SheetSnapshot target)
+    {
+        var sourceHeaderRow = FindLikelyHeaderRow(source);
+        var targetHeaderRow = FindLikelyHeaderRow(target);
+        if (sourceHeaderRow == 0 || targetHeaderRow == 0)
+        {
+            return;
+        }
+
+        var sourceHeaders = ReadHeaders(source, sourceHeaderRow);
+        var targetHeaders = ReadHeaders(target, targetHeaderRow);
+        var mappings = targetHeaders
+            .Select(targetHeader => new
+            {
+                TargetColumn = targetHeader.Key,
+                SourceColumn = sourceHeaders
+                    .Where(sourceHeader => Normalize(sourceHeader.Value) == Normalize(targetHeader.Value))
+                    .Select(sourceHeader => sourceHeader.Key)
+                    .FirstOrDefault()
+            })
+            .Where(mapping => mapping.SourceColumn > 0)
+            .ToList();
+
+        if (mappings.Count < 2)
+        {
+            return;
+        }
+
+        var targetRow = targetHeaderRow + 1;
+        for (var sourceRow = sourceHeaderRow + 1;
+             sourceRow <= source.MaxRow && targetRow <= 2006;
+             sourceRow++)
+        {
+            var rowValues = mappings
+                .Select(mapping => source.GetValue(sourceRow, mapping.SourceColumn))
+                .ToList();
+            if (rowValues.All(IsBlank))
+            {
+                continue;
+            }
+
+            foreach (var mapping in mappings)
+            {
+                var value = source.GetValue(sourceRow, mapping.SourceColumn);
+                if (IsBlank(value) ||
+                    !string.IsNullOrWhiteSpace(target.GetCell(targetRow, mapping.TargetColumn)?.Formula))
+                {
+                    continue;
+                }
+
+                patches.Add(new CellPatch
+                {
+                    Sheet = target.Name,
+                    Cell = XlsxAddress.ToCellReference(targetRow, mapping.TargetColumn),
+                    Value = value
+                });
+            }
+
+            targetRow++;
+        }
+    }
+
+    private static string ReadControlValue(WorkbookSnapshot source, string controlName)
+    {
+        if (!source.Sheets.TryGetValue("MVP_CONTROL", out var sheet))
+        {
+            return "";
+        }
+
+        for (var row = 1; row <= sheet.MaxRow; row++)
+        {
+            if (string.Equals(CleanText(sheet.GetValue(row, 1)), controlName, StringComparison.OrdinalIgnoreCase))
+            {
+                return CleanText(sheet.GetValue(row, 2));
+            }
+        }
+
+        return "";
+    }
+
+    private static bool HasSourceLogRows(WorkbookSnapshot source)
+    {
+        if (!source.Sheets.TryGetValue("STG_SOURCE_INTAKE", out var sheet))
+        {
+            return false;
+        }
+
+        var headerRow = FindLikelyHeaderRow(sheet);
+        if (headerRow == 0)
+        {
+            return false;
+        }
+
+        for (var row = headerRow + 1; row <= sheet.MaxRow; row++)
+        {
+            if (!IsBlank(sheet.GetValue(row, 1)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void AddGenericTableMappings(
+        MappingBuildResult result,
+        WorkbookSnapshot source,
+        WorkbookSnapshot template)
     {
         var targetTables = DiscoverTargetTables(template).ToList();
         var mappedTargets = new HashSet<string>(
@@ -860,7 +1045,6 @@ public sealed class SmartMappingEngine
 
             TargetTable? bestTarget = null;
             List<(int SourceColumn, int TargetColumn)> bestMappings = [];
-            var bestAiMatches = 0;
 
             foreach (var target in targetTables)
             {
@@ -871,52 +1055,15 @@ public sealed class SmartMappingEngine
 
                 var mappings =
                     new List<(int SourceColumn, int TargetColumn)>();
-                var aiMatchCount = 0;
 
                 foreach (var targetHeader in target.Columns)
                 {
-                    var ai = aiSuggestions
-                        .Where(suggestion =>
-                            string.Equals(
-                                suggestion.SourceSheet,
-                                sourceSheet.Name,
-                                StringComparison.OrdinalIgnoreCase) &&
-                            string.Equals(
-                                suggestion.TargetSheet,
-                                target.Sheet.Name,
-                                StringComparison.OrdinalIgnoreCase) &&
-                            Normalize(suggestion.TargetField) ==
+                    var sourceColumn = sourceHeaders
+                        .Where(header =>
+                            Normalize(header.Value) ==
                             Normalize(targetHeader.Key))
-                        .OrderByDescending(suggestion =>
-                            suggestion.Confidence)
+                        .Select(header => header.Key)
                         .FirstOrDefault();
-
-                    var sourceColumn = 0;
-
-                    if (ai is not null)
-                    {
-                        sourceColumn = sourceHeaders
-                            .Where(header =>
-                                Normalize(header.Value) ==
-                                Normalize(ai.SourceField))
-                            .Select(header => header.Key)
-                            .FirstOrDefault();
-
-                        if (sourceColumn > 0)
-                        {
-                            aiMatchCount++;
-                        }
-                    }
-
-                    if (sourceColumn == 0)
-                    {
-                        sourceColumn = sourceHeaders
-                            .Where(header =>
-                                Normalize(header.Value) ==
-                                Normalize(targetHeader.Key))
-                            .Select(header => header.Key)
-                            .FirstOrDefault();
-                    }
 
                     if (sourceColumn > 0)
                     {
@@ -931,14 +1078,10 @@ public sealed class SmartMappingEngine
                     continue;
                 }
 
-                if (bestTarget is null ||
-                    aiMatchCount > bestAiMatches ||
-                    (aiMatchCount == bestAiMatches &&
-                     mappings.Count > bestMappings.Count))
+                if (bestTarget is null || mappings.Count > bestMappings.Count)
                 {
                     bestTarget = target;
                     bestMappings = mappings;
-                    bestAiMatches = aiMatchCount;
                 }
             }
 
@@ -1010,7 +1153,7 @@ public sealed class SmartMappingEngine
             mappedTargets.Add(bestTarget.Sheet.Name);
             mappedAny = true;
             result.Warnings.Add(
-                $"A flat table from '{sourceSheet.Name}' was mapped into '{bestTarget.Sheet.Name}' using runtime headers and {bestAiMatches:N0} high-confidence AI field suggestion(s).");
+                $"A flat table from '{sourceSheet.Name}' was mapped into '{bestTarget.Sheet.Name}' using deterministic normalized-header matching.");
         }
 
         if (!mappedAny)
@@ -1039,7 +1182,7 @@ public sealed class SmartMappingEngine
             ["Version / Date"] = DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             ["Priority"] = "Primary",
             ["Used For"] = "Runtime source profiling, financial standardization and readiness review",
-            ["Review Status"] = "AI / pattern processed",
+            ["Review Status"] = "Deterministic mapping complete; review required",
             ["Owner"] = "Organization / IREI",
             ["Notes"] = $"{sheetCount:N0} sheet(s) inspected. Source tabs and columns were discovered at runtime.",
             ["Supersedes / Related"] = ""
@@ -1071,7 +1214,7 @@ public sealed class SmartMappingEngine
             {
                 Sheet = output.Name,
                 Cell = "A2",
-                Value = $"{organizationName} — AI and pattern-assisted draft; review required"
+                Value = $"{organizationName} — deterministic source mapping; review required"
             },
             new CellPatch
             {
@@ -1097,7 +1240,7 @@ public sealed class SmartMappingEngine
             {
                 Sheet = output.Name,
                 Cell = "C13",
-                Value = "AI and runtime pattern mapping; organizational review required"
+                Value = "Deterministic runtime mapping; organizational review required"
             },
             new CellPatch
             {

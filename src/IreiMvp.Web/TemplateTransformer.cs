@@ -43,19 +43,15 @@ public sealed class TemplateTransformer
             cancellationToken);
 
         const string profileName =
-            "Runtime workbook pattern mapping with optional AI field suggestions";
+            "V2 deterministic canonical and normalized-header mapping";
 
         var dashboard = _metricsFactory.Build(
             template,
             mapping.Patches,
             organizationName,
             profileName,
-            mapping.Warnings);
-
-        if (!string.IsNullOrWhiteSpace(mapping.ReportingPeriod))
-        {
-            dashboard.ReportingPeriod = mapping.ReportingPeriod;
-        }
+            mapping.Warnings,
+            mapping.ReportingPeriod);
 
         _xlsx.CopyAndPatch(
             templatePath,
@@ -66,8 +62,10 @@ public sealed class TemplateTransformer
         {
             ProfileName = profileName,
             Dashboard = dashboard,
-            Warnings = mapping.Warnings,
-            PatchCount = mapping.Patches.Count
+            Warnings = dashboard.Warnings,
+            PatchCount = mapping.Patches.Count,
+            SourceFileHash = source.Sha256,
+            SourceCutoffUtc = WorkbookValue.Date(mapping.SourceCutoffDate)
         };
     }
 
