@@ -1,64 +1,60 @@
-# IREI MVP — Updated First Version
+# IREI Stage 1 V2 — Non-AI
 
-This is the original ASP.NET Core 8 upload-and-dashboard project, updated to process organization workbooks whose sheet names, header rows, column order and property-tab names vary.
+This ASP.NET Core 8 application turns an uploaded organization workbook into a private, eight-page portfolio stewardship dashboard and a standardized IREI workbook.
 
-## Current intake approach
+The non-AI edition is deterministic. It does not call an AI service, infer investor recommendations, create a 100-point readiness score, or silently fill missing evidence. Unsupported or absent fields are shown as **Not assessed** and retained for human review.
 
-The application inspects every uploaded sheet at runtime. It does not depend on a fixed list of client sheet names or source columns.
+## V2 capabilities
 
-It supports two intake paths:
+- Eight distinct workflow pages matching the Stage 1 V2 navigation:
+  1. Portfolio Overview
+  2. Organization & Governance
+  3. Properties / Portfolio
+  4. Financial Resilience
+  5. Mission & Public Value
+  6. Decisions, Risks & Actions
+  7. Evidence & Data Quality
+  8. Reports & Authorized Use
+- Canonical import for the 40-sheet Stage 1 V2 workbook, plus normalized-header and existing wide-statement fallbacks.
+- Working assessment versions that compare to the latest approved/verified baseline.
+- Immutable approved assessment artifacts.
+- Deterministic field history and material-change events.
+- Persistent actions, decisions, obligations and forward events.
+- Metric-to-source evidence lineage and supporting-evidence uploads.
+- Frozen report artifacts with approval and sharing gates.
+- Property-row drill-through without inventing missing values.
 
-1. **Pattern mapping for wide financial models**
-   - Detects multi-year headers such as `2025-2026`.
-   - Identifies the line-item column dynamically.
-   - Distinguishes portfolio summaries from property-level statements.
-   - Creates property/project records from repeated property statement tabs.
-   - Extracts one reporting-period operating view without summing every forecast year.
-   - Detects repeated loan-summary matrices and annual mortgage/debt-service lines.
-   - Retains formula errors, unit conflicts and missing evidence as review flags.
+## Included workbooks
 
-2. **Optional OpenAI field suggestions**
-   - When `OPENAI_API_KEY` is configured, compact runtime sheet profiles are sent to the OpenAI Responses API.
-   - AI suggestions are used only above the configured confidence threshold.
-   - A 429 response or unavailable AI service does not stop processing; local pattern mapping continues.
-   - Flat tables can also be mapped by runtime header matching.
+- `Data/Templates/IREI_MVP_Stage1_V2_Blank_Template.xlsx` — production blank template.
+- `Data/Examples/IREI_MVP_Stage1_V2_NGOB_Demo.xlsx` — supplied V2 demonstration workbook for local verification only.
 
-The generated workbook remains private to the administrator. Participants see the dashboard only.
-
-## Main changes in this package
-
-- Removed organization-specific seed logic, source files and wording.
-- Removed the built-in example-processing button and endpoint.
-- Replaced the blank workbook with an organization-neutral IREI template.
-- Added dynamic handling for wide multi-year property and portfolio financial models.
-- Added debt-summary and unit-conflict detection.
-- Set the development admin key to `kelly`.
-- Kept local file storage for the first version.
+No organization-specific demo values are embedded in the application code or UI.
 
 ## Run locally
 
-```powershell
-dotnet clean .\src\IreiMvp.Web\IreiMvp.Web.csproj
-dotnet run --project .\src\IreiMvp.Web\IreiMvp.Web.csproj --urls http://localhost:5078
+```bash
+dotnet restore ./src/IreiMvp.Web/IreiMvp.Web.csproj
+dotnet run --project ./src/IreiMvp.Web/IreiMvp.Web.csproj --urls http://localhost:5078
 ```
 
 Open:
 
-- Participant UI: `http://localhost:5078`
-- Admin UI: `http://localhost:5078/admin.html`
-- Development admin key: `kelly`
+- Dashboard: `http://localhost:5078`
+- Admin workbook list: `http://localhost:5078/admin.html`
+- Health: `http://localhost:5078/health`
 
-## Optional OpenAI configuration
+The development admin key is configured in `appsettings.json`. Set `Irei__AdminKey` outside local development.
 
-PowerShell:
+## Docker
 
-```powershell
-$env:OPENAI_API_KEY="your-api-key"
+```bash
+docker compose up --build
 ```
 
-The application remains usable without the key for supported financial-model patterns.
+The named volume keeps submissions and organization workflow state between container restarts.
 
-## Storage
+## Storage model
 
 ```text
 App_Data/
@@ -67,6 +63,28 @@ App_Data/
       input.xlsx
       admin-output.xlsx
       submission.json
+  Organizations/
+    <organization-id>/
+      organization.json
+      Evidence/<source-id>/<file>
+      Reports/<report-id>.xlsx
 ```
 
-Before a public production launch, replace the simple admin key with authenticated user accounts and role-based authorization, and move files to encrypted object storage.
+Only safe public view models are returned by participant APIs. Server filesystem paths are not included. Generated assessment and approved-report downloads require the configured authorization key in this MVP.
+
+## Verification
+
+```bash
+node --check src/IreiMvp.Web/wwwroot/app.js
+python tests/verify_v2.py
+dotnet build ./IreiMvp.sln
+bash tests/smoke_api.sh
+```
+
+The CI workflow runs these checks on pushes and pull requests.
+
+## Deployment note
+
+`smarterasp-publish/` is a legacy compiled snapshot and is not updated by source edits. Regenerate it with `dotnet publish` before deploying to that hosting target; do not deploy the stale checked-in binaries.
+
+Before public production use, replace the starter admin-key control with identity-based authentication and role authorization, and move artifacts to encrypted managed storage with retention and backup policies.

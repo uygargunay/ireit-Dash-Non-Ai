@@ -84,7 +84,19 @@ public sealed class XlsxWorkbookService
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
         File.Copy(templatePath, outputPath, overwrite: true);
 
-        using var archive = ZipFile.Open(outputPath, ZipArchiveMode.Update);
+        Patch(outputPath, patches);
+    }
+
+    public void Patch(
+        string workbookPath,
+        IReadOnlyCollection<CellPatch> patches)
+    {
+        if (patches.Count == 0)
+        {
+            return;
+        }
+
+        using var archive = ZipFile.Open(workbookPath, ZipArchiveMode.Update);
         var sheetPaths = ReadSheetPaths(archive);
 
         foreach (var group in patches.GroupBy(p => p.Sheet, StringComparer.OrdinalIgnoreCase))

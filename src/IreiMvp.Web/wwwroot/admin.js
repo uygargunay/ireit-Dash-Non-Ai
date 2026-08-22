@@ -55,14 +55,15 @@ function render(records, key) {
     <article class="admin-card">
       <div>
         <strong>${escapeHtml(record.organizationName)}</strong>
-        <p>${escapeHtml(record.originalFileName)} · ${escapeHtml(record.profileName || "Unclassified")}</p>
+        <p>${escapeHtml(record.originalFileName)} · ${escapeHtml(record.versionId || "Unversioned")} · ${escapeHtml(record.profileName || "Unclassified")}</p>
         <div class="admin-meta">
           <span>${escapeHtml(record.status)}</span>
+          <span>${escapeHtml(record.versionStatus || "—")}</span>
           <span>${new Date(record.createdUtc).toLocaleString()}</span>
           <span>${record.warnings?.length || 0} warning(s)</span>
         </div>
       </div>
-      <button type="button" class="secondary" data-download="${record.id}">Download private workbook</button>
+      <button type="button" class="button secondary" data-download="${record.id}">Download private workbook</button>
     </article>
   `).join("");
 

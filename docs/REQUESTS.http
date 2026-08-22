@@ -1,9 +1,95 @@
 @base = http://localhost:5078
 @adminKey = kelly
+@submissionId = replace-after-upload
+@actionId = replace-action-id
+@reportId = replace-report-id
 
 ### Health
 GET {{base}}/health
 
+### Upload assessment (VS Code REST Client syntax)
+POST {{base}}/api/submissions
+Content-Type: multipart/form-data; boundary=irei-boundary
+
+--irei-boundary
+Content-Disposition: form-data; name="organizationName"
+
+Example Housing Society
+--irei-boundary
+Content-Disposition: form-data; name="file"; filename="assessment.xlsx"
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+
+< ../src/IreiMvp.Web/Data/Examples/IREI_MVP_Stage1_V2_NGOB_Demo.xlsx
+--irei-boundary--
+
+### Get complete eight-page view model
+GET {{base}}/api/submissions/{{submissionId}}
+
+### Approve assessment version
+POST {{base}}/api/submissions/{{submissionId}}/approve
+Content-Type: application/json
+
+{
+  "approvedBy": "Authorized reviewer"
+}
+
+### Add action
+POST {{base}}/api/submissions/{{submissionId}}/actions
+Content-Type: application/json
+
+{
+  "entityType": "Portfolio",
+  "entityId": "PORTFOLIO",
+  "issue": "Review material DSCR movement",
+  "owner": "CFO",
+  "decisionBody": "Management",
+  "riskLevel": "High"
+}
+
+### Complete action
+PATCH {{base}}/api/submissions/{{submissionId}}/actions/{{actionId}}
+Content-Type: application/json
+
+{
+  "status": "Completed",
+  "outcome": "Reviewed and accepted"
+}
+
+### Create frozen report snapshot
+POST {{base}}/api/submissions/{{submissionId}}/reports
+Content-Type: application/json
+
+{
+  "reportName": "Board Stewardship Report",
+  "purpose": "Board oversight",
+  "recipient": "Board of Directors",
+  "scope": "Approved assessment, risks, mission and capital evidence"
+}
+
+### Approve report
+POST {{base}}/api/submissions/{{submissionId}}/reports/{{reportId}}/approve
+Content-Type: application/json
+
+{
+  "approvedBy": "Board Chair"
+}
+
+### Share report
+POST {{base}}/api/submissions/{{submissionId}}/reports/{{reportId}}/share
+Content-Type: application/json
+
+{
+  "sharedBy": "Authorized user"
+}
+
+### Download frozen report
+GET {{base}}/api/submissions/{{submissionId}}/reports/{{reportId}}/download
+X-Admin-Key: {{adminKey}}
+
 ### Admin list
 GET {{base}}/api/admin/submissions
+X-Admin-Key: {{adminKey}}
+
+### Download generated assessment workbook (admin)
+GET {{base}}/api/admin/submissions/{{submissionId}}/output
 X-Admin-Key: {{adminKey}}
