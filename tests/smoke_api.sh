@@ -75,9 +75,15 @@ PY
 
 curl --silent --show-error --fail \
   -H "Content-Type: application/json" \
-  -d '{"issue":"CI persistent action","owner":"CFO","decisionBody":"Management","riskLevel":"Medium"}' \
+  -d '{"issue":"CI persistent action","entityId":null,"cause":null,"impact":null,"response":null,"owner":"CFO","dueDate":"2026-09-30T00:00:00.000Z","decisionBody":"Management","riskLevel":"Medium","evidenceReference":null}' \
   "http://127.0.0.1:$port/api/submissions/$submission_id/actions" \
   >"$smoke_root/action.json"
+
+curl --silent --show-error --fail \
+  -H "Content-Type: application/json" \
+  -d '{"obligation":"CI annual filing","source":null,"owner":null,"dueDate":"2027-06-30T00:00:00.000Z","recurrence":null,"notes":null}' \
+  "http://127.0.0.1:$port/api/submissions/$submission_id/obligations" \
+  >"$smoke_root/obligation.json"
 
 curl --silent --show-error --fail \
   -H "Content-Type: application/json" \
@@ -119,6 +125,7 @@ python - "$smoke_root/final.json" <<'PY'
 import json, sys
 data=json.load(open(sys.argv[1], encoding='utf-8'))
 assert any(item['issue'] == 'CI persistent action' for item in data['actions'])
+assert any(item['obligation'] == 'CI annual filing' for item in data['obligations'])
 assert any(item['reportName'] == 'CI Board Report' and item['status'] == 'Approved' for item in data['reports'])
 for source in data['sourceDocuments']:
     assert 'storedPath' not in source

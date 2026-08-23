@@ -288,16 +288,16 @@ public sealed class SubmissionStore
                 VersionId = record.VersionId,
                 EntityType = FirstNonBlank(request.EntityType, "Portfolio"),
                 EntityId = FirstNonBlank(request.EntityId, "PORTFOLIO"),
-                Issue = request.Issue.Trim(),
-                Cause = request.Cause.Trim(),
-                Impact = request.Impact.Trim(),
-                Response = request.Response.Trim(),
-                Owner = request.Owner.Trim(),
+                Issue = FirstNonBlank(request.Issue),
+                Cause = FirstNonBlank(request.Cause),
+                Impact = FirstNonBlank(request.Impact),
+                Response = FirstNonBlank(request.Response),
+                Owner = FirstNonBlank(request.Owner),
                 DueDate = request.DueDate,
                 DecisionBody = FirstNonBlank(request.DecisionBody, "Management"),
                 Status = "New",
                 RiskLevel = FirstNonBlank(request.RiskLevel, "Medium"),
-                EvidenceReference = request.EvidenceReference.Trim(),
+                EvidenceReference = FirstNonBlank(request.EvidenceReference),
                 LinkedChangeId = request.LinkedChangeId,
                 CreatedUtc = now,
                 UpdatedUtc = now
@@ -345,17 +345,17 @@ public sealed class SubmissionStore
                 ObligationId = NewId("OBL"),
                 OrganizationId = record.OrganizationId,
                 VersionId = record.VersionId,
-                Source = request.Source.Trim(),
-                Obligation = request.Obligation.Trim(),
+                Source = FirstNonBlank(request.Source),
+                Obligation = FirstNonBlank(request.Obligation),
                 EntityType = FirstNonBlank(request.EntityType, "Portfolio"),
                 EntityId = FirstNonBlank(request.EntityId, "PORTFOLIO"),
-                Owner = request.Owner.Trim(),
+                Owner = FirstNonBlank(request.Owner),
                 EffectiveDate = request.EffectiveDate,
                 DueDate = request.DueDate,
-                Recurrence = request.Recurrence.Trim(),
+                Recurrence = FirstNonBlank(request.Recurrence),
                 Status = "Upcoming",
-                EvidenceReference = request.EvidenceReference.Trim(),
-                Notes = request.Notes.Trim(),
+                EvidenceReference = FirstNonBlank(request.EvidenceReference),
+                Notes = FirstNonBlank(request.Notes),
                 CreatedUtc = now,
                 UpdatedUtc = now
             };
@@ -499,6 +499,10 @@ public sealed class SubmissionStore
         {
             if (string.IsNullOrWhiteSpace(request.ReportName))
                 throw new InvalidDataException("Report name is required.");
+            if (string.IsNullOrWhiteSpace(request.Purpose) ||
+                string.IsNullOrWhiteSpace(request.Recipient) ||
+                string.IsNullOrWhiteSpace(request.Scope))
+                throw new InvalidDataException("Report purpose, intended recipient and approved scope are required.");
             if (!File.Exists(record.OutputPath))
                 throw new InvalidDataException("The assessment workbook is unavailable.");
             var reportId = NewId("RPT");
@@ -515,13 +519,13 @@ public sealed class SubmissionStore
                 ReportId = reportId,
                 OrganizationId = record.OrganizationId,
                 VersionId = record.VersionId,
-                ReportName = request.ReportName.Trim(),
-                Purpose = request.Purpose.Trim(),
+                ReportName = FirstNonBlank(request.ReportName),
+                Purpose = FirstNonBlank(request.Purpose),
                 Period = record.ReportingPeriod,
                 ReportVersion = (prior?.ReportVersion ?? 0) + 1,
                 Status = "Draft",
-                Recipient = request.Recipient.Trim(),
-                Scope = request.Scope.Trim(),
+                Recipient = FirstNonBlank(request.Recipient),
+                Scope = FirstNonBlank(request.Scope),
                 SupersedesReportId = prior?.ReportId,
                 CreatedUtc = DateTimeOffset.UtcNow,
                 ArtifactPath = artifactPath
