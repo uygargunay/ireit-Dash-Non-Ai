@@ -1,5 +1,5 @@
 @base = http://localhost:5078
-@adminKey = kelly
+@adminKey = replace-with-a-local-admin-key
 @submissionId = replace-after-upload
 @actionId = replace-action-id
 @reportId = replace-report-id

@@ -4,7 +4,7 @@ services:
     ports:
       - "5078:8080"
     environment:
-      Irei__AdminKey: "kelly"
+      Irei__AdminKey: "${IREI_ADMIN_KEY:?Set IREI_ADMIN_KEY before starting}"
     volumes:
       - irei-submissions:/app/App_Data
 

@@ -244,8 +244,7 @@ public static class Program
 
     private static bool IsAdmin(HttpRequest request, IreiOptions options)
     {
-        var provided = request.Headers["X-Admin-Key"].FirstOrDefault()
-                       ?? request.Query["key"].FirstOrDefault();
+        var provided = request.Headers["X-Admin-Key"].FirstOrDefault();
         return !string.IsNullOrWhiteSpace(options.AdminKey) &&
                string.Equals(provided, options.AdminKey, StringComparison.Ordinal);
     }
