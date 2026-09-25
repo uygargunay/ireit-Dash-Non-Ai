@@ -111,6 +111,7 @@ def check_application() -> None:
     program = read(WEB / "Program.cs")
     settings = read(WEB / "appsettings.json")
     models = read(WEB / "Models.cs")
+    store = read(WEB / "SubmissionStore.cs")
 
     for label in PAGE_LABELS:
         if label not in index:
@@ -120,6 +121,33 @@ def check_application() -> None:
     if "IREI_MVP_Stage1_V2_Blank_Template.xlsx" not in settings:
         fail("V2 blank template is not configured")
 
+    required_ui = [
+        'id="property-search"',
+        'id="property-filter"',
+        'function geographicDistribution',
+        'function normalizeFormValues',
+        'data-report-preset=',
+        '4-PAGE CONDENSED VISUAL STORY',
+    ]
+    for token in required_ui:
+        if token not in app:
+            fail(f"required V2 workflow UI is missing: {token}")
+    for preset in ["executive", "portfolio", "mission", "evidence"]:
+        if not re.search(rf"^  {preset}: \{{", app, flags=re.MULTILINE):
+            fail(f"missing condensed report preset: {preset}")
+
+    if '"AdminKey": ""' not in settings or 'AdminKey { get; set; } = "";' not in models:
+        fail("an admin secret must not be committed as a source default")
+    if 'request.Query["key"]' in program or "download?key=" in app:
+        fail("authorization keys must be sent in headers, not query strings")
+    for unsafe_trim in [
+        "Cause = request.Cause.Trim(),", "Impact = request.Impact.Trim(),",
+        "Response = request.Response.Trim(),", "Source = request.Source.Trim(),",
+        "Notes = request.Notes.Trim(),",
+    ]:
+        if unsafe_trim in store:
+            fail(f"optional form value is not null-safe: {unsafe_trim}")
+
     prohibited = {
         "AiMappingAdvisor": ROOT,
         "OPENAI_API_KEY": ROOT,
@@ -128,6 +156,7 @@ def check_application() -> None:
         "financialReadinessScore": WEB / "wwwroot",
         "impactReadinessScore": WEB / "wwwroot",
         "/100": WEB / "wwwroot",
+        '"kelly"': ROOT,
     }
     for token, location in prohibited.items():
         files = [location] if location.is_file() else [

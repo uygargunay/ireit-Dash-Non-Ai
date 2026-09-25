@@ -3,7 +3,10 @@
 const state = {
   submission: null,
   page: location.hash.replace("#", "") || "overview",
-  selectedProperty: null
+  selectedProperty: null,
+  propertyQuery: "",
+  propertyFilter: "all",
+  busyCount: 0
 };
 
 const pages = {
@@ -15,6 +18,41 @@ const pages = {
   actions: ["Decisions, Risks & Actions", "Issues, causes, impacts, responses, owners and decision history"],
   evidence: ["Evidence & Data Quality", "Source tracking, mapping, verification, exceptions and lineage"],
   reports: ["Reports & Authorized Use", "Versioned reports, approval gates, recipients, scope and controlled sharing"]
+};
+
+const reportPresets = {
+  executive: {
+    title: "Executive Summary",
+    source: "Platform pages 1–2",
+    summary: "Key KPIs, material changes, priorities, governance and upcoming events.",
+    purpose: "Executive and board stewardship summary",
+    recipient: "Board / executive team",
+    scope: "Approved portfolio overview and organization governance evidence"
+  },
+  portfolio: {
+    title: "Portfolio & Financial",
+    source: "Platform pages 3–4",
+    summary: "Property health, financial performance, trends, debt and capital outlook.",
+    purpose: "Portfolio and financial review",
+    recipient: "Management / capital partners",
+    scope: "Approved property register, financial metrics, debt and capital events"
+  },
+  mission: {
+    title: "Mission & Risk",
+    source: "Platform pages 5–6",
+    summary: "Affordability outcomes, commitments, priority risks, actions and decisions.",
+    purpose: "Mission delivery and risk review",
+    recipient: "Board / funders",
+    scope: "Approved mission evidence, obligations, decisions, risks and actions"
+  },
+  evidence: {
+    title: "Evidence & Reporting",
+    source: "Platform pages 7–8",
+    summary: "Evidence quality, exceptions, report status and authorized use controls.",
+    purpose: "Evidence assurance and reporting control",
+    recipient: "Reviewer / authorized recipient",
+    scope: "Approved evidence lineage, data-quality exceptions and report registry"
+  }
 };
 
 const content = document.getElementById("content");
@@ -55,6 +93,8 @@ window.addEventListener("hashchange", () => {
 });
 
 content.addEventListener("click", handleContentAction);
+content.addEventListener("input", handleContentFilter);
+content.addEventListener("change", handleContentFilter);
 configureUpload();
 restoreLastSubmission();
 
@@ -138,6 +178,8 @@ async function submitUpload(event) {
 function setSubmission(submission, remember = true) {
   state.submission = submission;
   state.selectedProperty = null;
+  state.propertyQuery = "";
+  state.propertyFilter = "all";
   if (remember) localStorage.setItem("irei:lastSubmission", submission.id);
   render();
 }
@@ -213,10 +255,12 @@ function renderOverview(s) {
       ${kpi("Overall status", text(d.overallStatus), s.versionStatus === "Approved" ? "Approved assessment" : "Working assessment", statusTone(d.overallStatus))}
       ${kpi("Properties", number(d.totalProperties), `${number(d.includedProperties)} included`, "info")}
       ${kpi("Total units", number(d.modeledUnits), `${number(d.unclassifiedUnits)} unclassified`, d.unclassifiedUnits ? "warning" : "positive")}
-      ${kpi("Portfolio NOI", money(d.noi), periodLabel(s), d.noi < 0 ? "negative" : "positive")}
+      ${kpi("Portfolio NOI", money(d.noi), periodLabel(s), d.noi == null ? "" : d.noi < 0 ? "negative" : "positive")}
       ${kpi("Portfolio DSCR", multiple(d.dscr), "NOI / debt service", d.dscr == null ? "" : d.dscr < 1.2 ? "negative" : "positive")}
       ${kpi("Total debt", money(d.totalDebt), "Included instruments", "")}
     </div>
+
+    ${warningSummary(s.warnings || [])}
 
     <div class="grid-overview">
       <section class="panel panel-pad">
@@ -304,7 +348,8 @@ function renderGovernance(s) {
 function renderProperties(s) {
   const d = s.dashboard;
   const properties = d.properties || [];
-  const atRisk = properties.filter(item => ["watch", "high"].includes(normalized(item.riskLevel))).length;
+  const filtered = filterProperties(properties);
+  const atRisk = properties.filter(item => ["watch", "medium", "high", "critical", "atrisk"].includes(normalized(item.riskLevel))).length;
   const mix = [
     ["Affordable", d.affordableUnits || 0, "blue"],
     ["Market", d.marketUnits || 0, "green"],
@@ -312,6 +357,7 @@ function renderProperties(s) {
     ["Unclassified", d.unclassifiedUnits || 0, "amber"]
   ];
   const risks = propertyRiskCounts(properties);
+  const geography = geographicDistribution(properties);
   const exceptions = properties.filter(item => item.unitConflict || item.dataGaps > 0);
 
   content.innerHTML = `
@@ -323,12 +369,29 @@ function renderProperties(s) {
       ${kpi("At risk / watch", number(atRisk), percentOf(atRisk, d.totalProperties), atRisk ? "negative" : "positive")}
     </div>
     <section class="panel panel-pad">
-      <div class="panel-head"><h2>Property Register — click any row to drill through</h2><span class="panel-note">${properties.length} records</span></div>
-      ${propertiesTable(properties)}
+      <div class="panel-head"><h2>Property Register — click any row to drill through</h2><span id="property-record-count" class="panel-note">${filtered.length} of ${properties.length} records</span></div>
+      <div class="filter-bar" aria-label="Property register filters">
+        <label class="search-control">
+          <span class="sr-only">Search properties</span>
+          <input id="property-search" type="search" value="${escapeHtml(state.propertyQuery)}" placeholder="Search property, city, ID or classification" autocomplete="off">
+        </label>
+        <label class="select-control">
+          <span>Risk / status</span>
+          <select id="property-filter">
+            ${filterOption("all", "All records")}
+            ${filterOption("stable", "Stable")}
+            ${filterOption("watch", "Watch / medium")}
+            ${filterOption("high", "At risk / high")}
+            ${filterOption("exception", "Data exceptions")}
+          </select>
+        </label>
+      </div>
+      <div id="property-register-results">${propertiesTable(filtered)}</div>
       <div id="property-detail">${state.selectedProperty ? propertyDetail(properties.find(item => item.propertyId === state.selectedProperty)) : ""}</div>
     </section>
-    <div class="grid-3">
+    <div class="grid-4">
       <section class="panel panel-pad"><h2>Portfolio Mix</h2>${donut(mix, number(d.modeledUnits), "Units")}</section>
+      <section class="panel panel-pad"><h2>Geographic Mix</h2>${donut(geography, number(properties.length), "Properties")}</section>
       <section class="panel panel-pad"><h2>Risk Distribution</h2>${donut([["Stable", risks.stable, "green"], ["Watch", risks.watch, "amber"], ["High", risks.high, "red"], ["Not assessed", risks.notAssessed, "violet"]], number(properties.length), "Properties")}</section>
       <section class="panel panel-pad"><h2>Data / Unit Exceptions</h2>${exceptionTable(exceptions)}</section>
     </div>`;
@@ -367,7 +430,7 @@ function renderMission(s) {
     ["Supportive", d.supportiveUnits || 0, "violet"],
     ["Unclassified", d.unclassifiedUnits || 0, "amber"]
   ];
-  const reviewed = (d.agreements || []).filter(item => !normalized(item.verificationStatus).includes("review")).length;
+  const reviewed = (d.agreements || []).filter(item => isReviewedStatus(item.verificationStatus)).length;
   content.innerHTML = `
     <div class="kpi-grid">
       ${kpi("Affordable units", number(d.affordableUnits), percentOf(d.affordableUnits, d.modeledUnits), d.affordableUnits ? "positive" : "warning")}
@@ -415,7 +478,7 @@ function renderActions(s) {
       <section class="panel panel-pad">
         <h2>Workflow</h2>
         <div class="workflow">
-          ${["Identify issue", "Link evidence", "Assign owner", "Decision / action", "Track outcome"].map((label, index) => `<div class="workflow-step"><b>${index + 1}</b><span>${label}</span></div>`).join("")}
+          ${["Identify issue", "Link evidence", "Assign owner", "Decision / action", "Track outcome", "Close & learn"].map((label, index) => `<div class="workflow-step"><b>${index + 1}</b><span>${label}</span></div>`).join("")}
         </div>
       </section>
     </div>`;
@@ -436,6 +499,7 @@ function renderEvidence(s) {
       ${kpi("Missing", number(missing), "Intake warnings", missing ? "negative" : "positive")}
       ${kpi("Conflicting", number(conflicting), "Unit conflicts", conflicting ? "negative" : "positive")}
     </div>
+    ${warningSummary(s.warnings || [], true)}
     <div class="grid-2">
       <section class="panel panel-pad"><h2>Evidence Status by Category</h2><div class="metric-list">${categories.map(evidenceCategoryRow).join("") || empty("No evidence categories are available.")}</div></section>
       <section class="panel panel-pad">
@@ -463,6 +527,15 @@ function renderReports(s) {
       ${kpi("Superseded", number(superseded), "Prior reports retained", "")}
     </div>
     <section class="panel panel-pad">
+      <div class="panel-head report-story-head">
+        <div><span class="eyebrow">4-PAGE CONDENSED VISUAL STORY</span><h2>Controlled report views</h2></div>
+        <span class="panel-note">Each view groups related platform pages and creates a frozen report snapshot.</span>
+      </div>
+      <div class="report-story-grid">
+        ${Object.entries(reportPresets).map(([key, preset], index) => reportPresetCard(key, preset, index + 1)).join("")}
+      </div>
+    </section>
+    <section class="panel panel-pad">
       <div class="panel-head"><h2>Report Snapshot Registry</h2><button class="button small primary" data-action="new-report">New report</button></div>
       ${reportsTable(reports, s.versionStatus)}
     </section>
@@ -488,6 +561,27 @@ function renderReports(s) {
         ])}
       </section>
     </div>`;
+}
+
+function handleContentFilter(event) {
+  if (state.page !== "properties") return;
+  if (event.target.id === "property-search") {
+    state.propertyQuery = event.target.value;
+    updatePropertyRegister();
+  }
+  if (event.target.id === "property-filter") {
+    state.propertyFilter = event.target.value;
+    updatePropertyRegister();
+  }
+}
+
+function updatePropertyRegister() {
+  const properties = state.submission?.dashboard?.properties || [];
+  const filtered = filterProperties(properties);
+  const results = document.getElementById("property-register-results");
+  const count = document.getElementById("property-record-count");
+  if (results) results.innerHTML = propertiesTable(filtered);
+  if (count) count.textContent = `${filtered.length} of ${properties.length} records`;
 }
 
 async function handleContentAction(event) {
@@ -517,13 +611,11 @@ async function handleContentAction(event) {
   if (action === "new-obligation") return openObligationForm();
   if (action === "upload-evidence") return openEvidenceForm();
   if (action === "new-report") return openReportForm();
+  if (action === "report-preset") return openReportForm(target.dataset.reportPreset);
   if (action === "close-action") return closeAction(target.dataset.id);
   if (action === "approve-report") return approveReport(target.dataset.id);
   if (action === "share-report") return shareReport(target.dataset.id);
-  if (action === "download-report") {
-    const key = prompt("Authorized download key");
-    if (key) location.href = `/api/submissions/${encodeURIComponent(state.submission.id)}/reports/${encodeURIComponent(target.dataset.id)}/download?key=${encodeURIComponent(key)}`;
-  }
+  if (action === "download-report") return downloadReport(target.dataset.id);
 }
 
 async function approveVersion() {
@@ -544,12 +636,17 @@ async function approveVersion() {
 
 function openActionForm() {
   openForm("New action / decision", [
-    field("issue", "Issue / action", "textarea", true),
+    field("issue", "Issue / risk", "textarea", true),
+    field("entityType", "Entity type", "select", false, ["Portfolio", "Property", "Organization", "Agreement", "Debt"]),
+    field("entityId", "Entity ID"),
+    field("cause", "Root cause", "textarea"),
+    field("impact", "Impact", "textarea"),
+    field("response", "Response / action", "textarea"),
     field("owner", "Owner"),
     field("dueDate", "Due date", "date"),
     field("decisionBody", "Decision body", "select", false, ["Management", "Board", "CEO", "CFO"]),
     field("riskLevel", "Risk level", "select", false, ["Low", "Medium", "High", "Critical"]),
-    field("response", "Response", "textarea")
+    field("evidenceReference", "Evidence reference")
   ], async values => {
     await jsonMutation(`/api/submissions/${state.submission.id}/actions`, "POST", values);
     toast("Action added.");
@@ -570,12 +667,13 @@ function openObligationForm() {
   });
 }
 
-function openReportForm() {
+function openReportForm(presetKey) {
+  const preset = reportPresets[presetKey];
   openForm("Create report snapshot", [
-    field("reportName", "Report name", "text", true),
-    field("purpose", "Purpose", "textarea", true),
-    field("recipient", "Intended recipient", "text", true),
-    field("scope", "Approved scope", "textarea", true)
+    field("reportName", "Report name", "text", true, [], preset?.title || ""),
+    field("purpose", "Purpose", "textarea", true, [], preset?.purpose || ""),
+    field("recipient", "Intended recipient", "text", true, [], preset?.recipient || ""),
+    field("scope", "Approved scope", "textarea", true, [], preset?.scope || "")
   ], async values => {
     await jsonMutation(`/api/submissions/${state.submission.id}/reports`, "POST", values);
     toast("Frozen report snapshot created.");
@@ -619,6 +717,34 @@ async function shareReport(id) {
   } catch (error) { toast(error.message, true); }
 }
 
+async function downloadReport(id) {
+  const key = prompt("Authorized download key");
+  if (!key) return;
+  setBusy(true);
+  try {
+    const response = await fetch(`/api/submissions/${encodeURIComponent(state.submission.id)}/reports/${encodeURIComponent(id)}/download`, {
+      headers: { "X-Admin-Key": key }
+    });
+    if (!response.ok) {
+      throw new Error(response.status === 401 ? "The authorization key is not valid." : "The report could not be downloaded.");
+    }
+    const blob = await response.blob();
+    const filename = downloadFilename(response.headers.get("content-disposition"), `IREI-${id}.xlsx`);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    setBusy(false);
+  }
+}
+
 function openForm(title, fields, onSubmit) {
   const form = document.getElementById("dynamic-form");
   form.innerHTML = `
@@ -634,8 +760,7 @@ function openForm(title, fields, onSubmit) {
     submit.disabled = true;
     errorBox.classList.add("hidden");
     const formData = new FormData(form);
-    const values = Object.fromEntries([...formData.entries()].filter(([, value]) => !(value instanceof File)));
-    Object.keys(values).forEach(key => { if (values[key] === "") values[key] = null; });
+    const values = normalizeFormValues(Object.fromEntries([...formData.entries()].filter(([, value]) => !(value instanceof File))));
     try {
       await onSubmit(values, form);
       formDialog.close();
@@ -649,15 +774,15 @@ function openForm(title, fields, onSubmit) {
   formDialog.showModal();
 }
 
-function field(name, label, type = "text", required = false, options = []) {
-  return { name, label, type, required, options };
+function field(name, label, type = "text", required = false, options = [], value = "") {
+  return { name, label, type, required, options, value };
 }
 
 function formField(item) {
   const required = item.required ? " required" : "";
-  if (item.type === "textarea") return `<label class="field span-2"><span>${escapeHtml(item.label)}</span><textarea name="${escapeHtml(item.name)}"${required}></textarea></label>`;
-  if (item.type === "select") return `<label class="field"><span>${escapeHtml(item.label)}</span><select name="${escapeHtml(item.name)}"${required}>${item.options.map(value => `<option>${escapeHtml(value)}</option>`).join("")}</select></label>`;
-  return `<label class="field"><span>${escapeHtml(item.label)}</span><input type="${escapeHtml(item.type)}" name="${escapeHtml(item.name)}"${required}></label>`;
+  if (item.type === "textarea") return `<label class="field span-2"><span>${escapeHtml(item.label)}</span><textarea name="${escapeHtml(item.name)}"${required}>${escapeHtml(item.value)}</textarea></label>`;
+  if (item.type === "select") return `<label class="field"><span>${escapeHtml(item.label)}</span><select name="${escapeHtml(item.name)}"${required}>${item.options.map(value => `<option ${value === item.value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select></label>`;
+  return `<label class="field"><span>${escapeHtml(item.label)}</span><input type="${escapeHtml(item.type)}" name="${escapeHtml(item.name)}" value="${escapeHtml(item.value)}"${required}></label>`;
 }
 
 async function jsonMutation(url, method, body) {
@@ -671,17 +796,67 @@ async function reloadSubmission() {
 }
 
 async function api(url, options = {}) {
-  const response = await fetch(url, options);
-  const type = response.headers.get("content-type") || "";
-  const payload = type.includes("json") ? await response.json() : await response.text();
-  if (!response.ok) {
-    throw new Error(payload?.error || payload?.detail || payload?.title || payload || `Request failed (${response.status}).`);
+  setBusy(true);
+  try {
+    const response = await fetch(url, options);
+    const type = response.headers.get("content-type") || "";
+    const payload = type.includes("json") ? await response.json() : await response.text();
+    if (!response.ok) {
+      throw new Error(payload?.error || payload?.detail || payload?.title || payload || `Request failed (${response.status}).`);
+    }
+    return payload;
+  } finally {
+    setBusy(false);
   }
-  return payload;
+}
+
+function setBusy(active) {
+  state.busyCount = Math.max(0, state.busyCount + (active ? 1 : -1));
+  const busy = state.busyCount > 0;
+  const loadingBar = document.getElementById("loading-bar");
+  loadingBar.classList.toggle("hidden", !busy);
+  loadingBar.setAttribute("aria-hidden", String(!busy));
+  document.body.setAttribute("aria-busy", String(busy));
+}
+
+function normalizeFormValues(values) {
+  Object.entries(values).forEach(([key, value]) => {
+    if (value === "") {
+      values[key] = null;
+    } else if (/date$/i.test(key) && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      values[key] = `${value}T00:00:00.000Z`;
+    }
+  });
+  return values;
+}
+
+function downloadFilename(disposition, fallback) {
+  const match = String(disposition || "").match(/filename\*?=(?:UTF-8''|\")?([^\";]+)/i);
+  if (!match) return fallback;
+  try { return decodeURIComponent(match[1]); } catch { return match[1]; }
 }
 
 function kpi(label, value, note, tone = "") {
   return `<div class="kpi"><span class="label">${escapeHtml(label)}</span><strong class="${tone}">${escapeHtml(String(value))}</strong><small class="${tone}">${escapeHtml(note || "")}</small></div>`;
+}
+
+function warningSummary(items, detailed = false) {
+  if (!items.length) return "";
+  const visible = items.slice(0, detailed ? 8 : 3);
+  return `<section class="warning-summary" role="note">
+    <div class="warning-summary-title"><span aria-hidden="true">!</span><div><b>${items.length} intake ${items.length === 1 ? "warning" : "warnings"}</b><small>Missing or unsupported values remain Not assessed until a reviewer resolves them.</small></div></div>
+    <ul>${visible.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+    ${items.length > visible.length ? `<small>${items.length - visible.length} more warning(s) retained in the assessment record.</small>` : ""}
+    ${detailed ? "" : `<button class="link-button" type="button" data-page-link="evidence">Review data quality</button>`}
+  </section>`;
+}
+
+function reportPresetCard(key, preset, index) {
+  return `<button class="report-story-card" type="button" data-action="report-preset" data-report-preset="${escapeHtml(key)}">
+    <span class="story-number">${index}</span>
+    <span class="story-copy"><b>${escapeHtml(preset.title)}</b><small>${escapeHtml(preset.source)}</small><span>${escapeHtml(preset.summary)}</span></span>
+    <span class="story-action">Create snapshot →</span>
+  </button>`;
 }
 
 function changeRow(item) {
@@ -735,6 +910,39 @@ function donut(parts, center, centerLabel) {
   return `<div class="donut-layout"><div class="donut" style="background:conic-gradient(${stops})"><div class="donut-center">${escapeHtml(center)}<small>${escapeHtml(centerLabel)}</small></div></div><div class="legend">${clean.map(([label, value, tone]) => `<div class="legend-row"><i class="${tone}"></i><span>${escapeHtml(label)}</span><b>${number(value)}</b></div>`).join("")}</div></div>`;
 }
 
+function filterOption(value, label) {
+  return `<option value="${escapeHtml(value)}" ${state.propertyFilter === value ? "selected" : ""}>${escapeHtml(label)}</option>`;
+}
+
+function filterProperties(items) {
+  const query = normalized(state.propertyQuery);
+  return items.filter(item => {
+    const searchable = normalized([item.name, item.propertyId, item.city, item.classification, item.status, item.riskLevel].join(" "));
+    if (query && !searchable.includes(query)) return false;
+    const risk = normalized(item.riskLevel);
+    const status = normalized(item.status);
+    if (state.propertyFilter === "stable") return risk === "stable" || status === "stable";
+    if (state.propertyFilter === "watch") return ["watch", "medium", "conditional"].includes(risk) || status === "watch";
+    if (state.propertyFilter === "high") return ["high", "critical", "atrisk"].includes(risk) || status === "atrisk";
+    if (state.propertyFilter === "exception") return Boolean(item.unitConflict) || Number(item.dataGaps) > 0;
+    return true;
+  });
+}
+
+function geographicDistribution(items) {
+  const counts = new Map();
+  items.forEach(item => {
+    const location = text(item.city);
+    counts.set(location, (counts.get(location) || 0) + 1);
+  });
+  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  const visible = sorted.length > 5
+    ? [...sorted.slice(0, 4), ["Other", sorted.slice(4).reduce((sum, [, count]) => sum + count, 0)]]
+    : sorted;
+  const tones = ["blue", "green", "violet", "amber", "red"];
+  return visible.map(([label, value], index) => [label, value, tones[index % tones.length]]);
+}
+
 function propertiesTable(items) {
   return table(["Property", "Location", "Units", "Status", "Risk", "DSCR", "YoY NOI", "Data gaps"], items.map(item => [
     `<b>${escapeHtml(item.name)}</b><br><small>${escapeHtml(item.propertyId)}</small>`,
@@ -779,10 +987,19 @@ function outcomesTable(items) {
 }
 
 function actionsTable(items, editable) {
-  const headings = ["Issue", "Entity", "Owner", "Due", "Decision body", "Status", "Risk"];
+  const headings = ["Issue / entity", "Cause", "Impact", "Response / decision", "Owner", "Due", "Status", "Risk"];
   if (editable) headings.push("Action");
   return table(headings, items.map(item => {
-    const row = [escapeHtml(item.issue), escapeHtml(item.entityId), escapeHtml(text(item.owner)), item.dueDate ? formatDate(item.dueDate) : "Not dated", escapeHtml(text(item.decisionBody)), badge(item.status), badge(item.riskLevel)];
+    const row = [
+      `<span class="cell-wrap"><b>${escapeHtml(item.issue)}</b><small>${escapeHtml(text(item.entityId))}</small></span>`,
+      `<span class="cell-wrap">${escapeHtml(text(item.cause))}</span>`,
+      `<span class="cell-wrap">${escapeHtml(text(item.impact))}</span>`,
+      `<span class="cell-wrap">${escapeHtml(text(item.response))}<small>${escapeHtml(text(item.decisionBody))}</small></span>`,
+      escapeHtml(text(item.owner)),
+      item.dueDate ? formatDate(item.dueDate) : "Not dated",
+      badge(item.status),
+      badge(item.riskLevel)
+    ];
     if (editable) row.push(`<button class="button small secondary" data-action="close-action" data-id="${escapeHtml(item.actionId)}">Complete</button>`);
     return row;
   }));
@@ -860,16 +1077,28 @@ function missionAlignment(d) {
 function evidenceCategories(items) {
   const map = new Map();
   items.forEach(item => {
-    const key = item.entityType === "Property" ? "Property / units" : financialField(item.fieldName) ? "Financial" : "Portfolio / governance";
+    const key = evidenceCategory(item);
     const current = map.get(key) || { name: key, total: 0, verified: 0 };
     current.total += 1;
     if (normalized(item.verificationStatus) === "verified") current.verified += 1;
     map.set(key, current);
   });
-  return [...map.values()];
+  const order = ["Financial", "Debt / refinancing", "Agreements", "Capital plans", "Property / units", "Mission / impact", "Organization / governance"];
+  return [...map.values()].sort((a, b) => order.indexOf(a.name) - order.indexOf(b.name));
 }
 
-function financialField(value) { return ["revenue", "noi", "debtservice", "dscr", "liquidity", "capital"].some(word => normalized(value).includes(word)); }
+function evidenceCategory(item) {
+  const entity = normalized(item.entityType);
+  const words = normalized([item.fieldName, item.sourceFile, item.sourceLocation, item.entityType].join(" "));
+  if (entity === "property" || ["property", "unit", "occupancy", "asset"].some(word => words.includes(word))) return "Property / units";
+  if (["debt", "mortgage", "loan", "refinanc", "interest", "dscr"].some(word => words.includes(word))) return "Debt / refinancing";
+  if (["agreement", "covenant", "restriction", "subsidy"].some(word => words.includes(word))) return "Agreements";
+  if (["capital", "capex", "repair", "replacement"].some(word => words.includes(word))) return "Capital plans";
+  if (["afford", "supportive", "mission", "outcome", "impact", "community", "household"].some(word => words.includes(word))) return "Mission / impact";
+  if (["revenue", "noi", "expense", "liquidity", "cash", "financial", "operating"].some(word => words.includes(word))) return "Financial";
+  return "Organization / governance";
+}
+
 function propertyRiskCounts(items) {
   const counts = { stable: 0, watch: 0, high: 0, notAssessed: 0 };
   items.forEach(item => {
@@ -915,6 +1144,7 @@ function percentOf(value, total) { return Number(total) > 0 ? percent(Number(val
 function periodLabel(s) { return s.reportingPeriod ? `Reporting period ${s.reportingPeriod}` : "Reporting period not assessed"; }
 function normalized(value) { return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
 function isClosed(value) { return ["closed", "complete", "completed", "resolved"].includes(normalized(value)); }
+function isReviewedStatus(value) { return ["verified", "reviewed", "approved", "complete", "completed"].includes(normalized(value)); }
 function formatDate(value) { if (!value) return "Not dated"; const date = new Date(value); return Number.isNaN(date.valueOf()) ? text(value) : new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }).format(date); }
 function daysAgo(days) { const date = new Date(); date.setDate(date.getDate() - days); return date; }
 function dueWithin(value, days) { if (!value) return false; const date = new Date(value); const now = new Date(); return date >= now && date <= new Date(now.valueOf() + days * 86400000); }

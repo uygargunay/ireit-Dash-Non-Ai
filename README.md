@@ -23,6 +23,8 @@ The non-AI edition is deterministic. It does not call an AI service, infer inves
 - Metric-to-source evidence lineage and supporting-evidence uploads.
 - Frozen report artifacts with approval and sharing gates.
 - Property-row drill-through without inventing missing values.
+- Searchable/filterable property register with portfolio, geography, risk and exception views.
+- Four controlled condensed-story presets: Executive Summary, Portfolio & Financial, Mission & Risk, and Evidence & Reporting.
 
 ## Included workbooks
 
@@ -34,6 +36,7 @@ No organization-specific demo values are embedded in the application code or UI.
 ## Run locally
 
 ```bash
+export Irei__AdminKey="choose-a-long-local-secret"
 dotnet restore ./src/IreiMvp.Web/IreiMvp.Web.csproj
 dotnet run --project ./src/IreiMvp.Web/IreiMvp.Web.csproj --urls http://localhost:5078
 ```
@@ -44,11 +47,12 @@ Open:
 - Admin workbook list: `http://localhost:5078/admin.html`
 - Health: `http://localhost:5078/health`
 
-The development admin key is configured in `appsettings.json`. Set `Irei__AdminKey` outside local development.
+No admin key is committed to source control. Set `Irei__AdminKey` in the process environment before using private workbook or approved-report downloads. Keep the value out of URLs, logs and committed configuration.
 
 ## Docker
 
 ```bash
+export IREI_ADMIN_KEY="choose-a-long-local-secret"
 docker compose up --build
 ```
 
@@ -70,7 +74,7 @@ App_Data/
       Reports/<report-id>.xlsx
 ```
 
-Only safe public view models are returned by participant APIs. Server filesystem paths are not included. Generated assessment and approved-report downloads require the configured authorization key in this MVP.
+Only safe public view models are returned by participant APIs. Server filesystem paths are not included. Generated assessment and approved-report downloads require the configured authorization key in the `X-Admin-Key` request header in this MVP.
 
 ## Verification
 

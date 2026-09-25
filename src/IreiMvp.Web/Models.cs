@@ -6,7 +6,7 @@ public sealed class IreiOptions
 {
     public string DataRoot { get; set; } = "App_Data";
     public string TemplatePath { get; set; } = "Data/Templates/IREI_MVP_Stage1_V2_Blank_Template.xlsx";
-    public string AdminKey { get; set; } = "kelly";
+    public string AdminKey { get; set; } = "";
     public long MaximumUploadBytes { get; set; } = 50 * 1024 * 1024;
     public MaterialityOptions Materiality { get; set; } = new();
 }
@@ -463,17 +463,17 @@ public sealed class SourceDocumentView
 
 public sealed class CreateActionRequest
 {
-    public string EntityType { get; set; } = "Portfolio";
-    public string EntityId { get; set; } = "PORTFOLIO";
-    public string Issue { get; set; } = "";
-    public string Cause { get; set; } = "";
-    public string Impact { get; set; } = "";
-    public string Response { get; set; } = "";
-    public string Owner { get; set; } = "";
+    public string? EntityType { get; set; } = "Portfolio";
+    public string? EntityId { get; set; } = "PORTFOLIO";
+    public string? Issue { get; set; }
+    public string? Cause { get; set; }
+    public string? Impact { get; set; }
+    public string? Response { get; set; }
+    public string? Owner { get; set; }
     public DateTimeOffset? DueDate { get; set; }
-    public string DecisionBody { get; set; } = "Management";
-    public string RiskLevel { get; set; } = "Medium";
-    public string EvidenceReference { get; set; } = "";
+    public string? DecisionBody { get; set; } = "Management";
+    public string? RiskLevel { get; set; } = "Medium";
+    public string? EvidenceReference { get; set; }
     public string? LinkedChangeId { get; set; }
 }
 
@@ -489,16 +489,16 @@ public sealed class UpdateActionRequest
 
 public sealed class CreateObligationRequest
 {
-    public string Source { get; set; } = "";
-    public string Obligation { get; set; } = "";
-    public string EntityType { get; set; } = "Portfolio";
-    public string EntityId { get; set; } = "PORTFOLIO";
-    public string Owner { get; set; } = "";
+    public string? Source { get; set; }
+    public string? Obligation { get; set; }
+    public string? EntityType { get; set; } = "Portfolio";
+    public string? EntityId { get; set; } = "PORTFOLIO";
+    public string? Owner { get; set; }
     public DateTimeOffset? EffectiveDate { get; set; }
     public DateTimeOffset? DueDate { get; set; }
-    public string Recurrence { get; set; } = "";
-    public string EvidenceReference { get; set; } = "";
-    public string Notes { get; set; } = "";
+    public string? Recurrence { get; set; }
+    public string? EvidenceReference { get; set; }
+    public string? Notes { get; set; }
 }
 
 public sealed class UpdateObligationRequest
@@ -512,10 +512,10 @@ public sealed class UpdateObligationRequest
 
 public sealed class CreateReportRequest
 {
-    public string ReportName { get; set; } = "";
-    public string Purpose { get; set; } = "";
-    public string Recipient { get; set; } = "";
-    public string Scope { get; set; } = "";
+    public string? ReportName { get; set; }
+    public string? Purpose { get; set; }
+    public string? Recipient { get; set; }
+    public string? Scope { get; set; }
 }
 
 public sealed class ApprovalRequest
