@@ -1,0 +1,23 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "IreiMvp.Web/1.0.0": {
+        "runtime": {
+          "IreiMvp.Web.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "IreiMvp.Web/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

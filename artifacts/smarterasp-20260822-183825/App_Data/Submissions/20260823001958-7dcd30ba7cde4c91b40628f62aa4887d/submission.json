@@ -1,0 +1,664 @@
+{
+  "Id": "20260823001958-7dcd30ba7cde4c91b40628f62aa4887d",
+  "OrganizationId": "ORG-ngob-CC76FC99",
+  "OrganizationName": "NGOB",
+  "VersionId": "ORG-ngob-CC76FC99-V002",
+  "ParentVersionId": "ORG-ngob-CC76FC99-V001",
+  "VersionStatus": "Approved",
+  "ReportingPeriod": "2025-2026",
+  "OriginalFileName": "IREI_MVP_Stage1_V2_NGOB_Demo.xlsx",
+  "Status": "Completed",
+  "ProfileName": "V2 deterministic canonical and normalized-header mapping",
+  "CreatedUtc": "2026-08-23T00:19:58.7035275+00:00",
+  "CompletedUtc": "2026-08-23T00:19:59.297037+00:00",
+  "LastVerifiedUtc": "2026-08-23T00:27:15.827019+00:00",
+  "InputPath": "C:\\Users\\Uygar\\source\\repos\\IREI_MVP_Project\\src\\IreiMvp.Web\\App_Data\\Submissions\\20260823001958-7dcd30ba7cde4c91b40628f62aa4887d\\input.xlsx",
+  "OutputPath": "C:\\Users\\Uygar\\source\\repos\\IREI_MVP_Project\\src\\IreiMvp.Web\\App_Data\\Submissions\\20260823001958-7dcd30ba7cde4c91b40628f62aa4887d\\admin-output.xlsx",
+  "Dashboard": {
+    "OrganizationName": "NGOB",
+    "OrganizationType": "Not provided",
+    "HeadOffice": "Not provided",
+    "IncorporatedYear": "Not provided",
+    "ReportingPeriod": "2025-2026",
+    "ProfileName": "V2 deterministic canonical and normalized-header mapping",
+    "OverallStatus": "Conditional",
+    "TotalProperties": 17,
+    "IncludedProperties": 16,
+    "ExistingAssets": 12,
+    "NewProjects": 4,
+    "ModeledUnits": 1008,
+    "AffordableUnits": 307,
+    "MarketUnits": 233,
+    "SupportiveUnits": 0,
+    "UnclassifiedUnits": 467,
+    "HouseholdsServed": 1008,
+    "AverageAffordabilityDepth": null,
+    "Revenue": 9352051.4993999992,
+    "OperatingExpenses": 7271155.3266788004,
+    "Noi": 2080896.1727211988,
+    "DebtService": 2659916,
+    "Affo": -579019.8272788012,
+    "Dscr": 0.7823164989876367524387988192,
+    "TotalDebt": 249179236.36999999973,
+    "UnrestrictedLiquidity": null,
+    "InterestCoverage": 2.1587179549989094870065874786,
+    "UnfundedCapitalNeeds": null,
+    "MissionFocus": "",
+    "Warnings": [
+      "Unrestricted liquidity was not explicitly classified; liquidity is not assessed.",
+      "A quantified funded/unfunded capital-needs plan was not supplied.",
+      "Agreement and restriction evidence was not supplied; mission obligations are not assessed."
+    ],
+    "Properties": [
+      {
+        "PropertyId": "BLD_AB",
+        "Name": "Alma Blackwell",
+        "City": "Vancouver",
+        "Status": "Active",
+        "Included": false,
+        "Units": 46,
+        "AlternateUnits": null,
+        "UnitConflict": false,
+        "Classification": "Excluded",
+        "SourceConfidence": "High",
+        "DataStatus": "Ready",
+        "DataGaps": 0,
+        "RiskLevel": "Stable",
+        "Noi": null,
+        "PreviousNoi": null,
+        "Dscr": null,
+        "YoyNoiChange": null,
+        "AffordableUnits": 0,
+        "MarketUnits": 0,
+        "SupportiveUnits": 0
+      },
+      {
+        "PropertyId": "BLD_AC",
+        "Name": "Antkiw Court",
+        "City": "Vancouver",
+        "Status": "Active",
+        "Included": true,
+        "Units": 21,
+        "AlternateUnits": null,
+        "UnitConflict": false,
+        "Classification": "Stable",
+        "SourceConfidence": "High",
+        "DataStatus": "Ready",
+        "DataGaps": 0,
+        "RiskLevel": "Stable",
+        "Noi": null,
+        "PreviousNoi": null,
+        "Dscr": null,
+        "YoyNoiChange": null,
+        "AffordableUnits": 0,
+        "MarketUnits": 0,
+        "SupportiveUnits": 0
+      },
+      {
+        "PropertyId": "BLD_BT",
+        "Name": "Beatrice Terrace",
+        "City": "Vancouver",
+        "Status": "Active",
+        "Included": true,
+        "Units": 18,
+        "AlternateUnits": null,
+        "UnitConflict": false,
+        "Classification": "Stable",
+        "SourceConfidence": "High",
+        "DataStatus": "Ready",
+        "DataGaps": 0,
+        "RiskLevel": "Stable",
+        "Noi": null,
+        "PreviousNoi": null,
+        "Dscr": null,
+        "YoyNoiChange": null,
+        "AffordableUnits": 0,
+        "MarketUnits": 0,
+        "SupportiveUnits": 0
+      },
+      {
+        "PropertyId": "BLD_CH",
+        "Name": "Capilano House",
+        "City": "DNV",
+        "Status": "Active",
+        "Included": true,
+        "Units": 64,
+        "AlternateUnits": null,
+        "UnitConflict": false,
+        "Classification": "Stable",
+        "SourceConfidence": "High",
+        "DataStatus": "Ready",
+        "DataGaps": 0,
+        "RiskLevel": "Stable",
+        "Noi": null,
+        "PreviousNoi": null,
+        "Dscr": null,
+        "YoyNoiChange": null,
+        "AffordableUnits": 0,
+        "MarketUnits": 0,
+        "SupportiveUnits": 0
+      },
+      {
+        "PropertyId": "BLD_CC",
+        "Name": "Constance Court",
+        "City": "Vancouver",
+        "Status": "Active",
+        "Included": true,
+        "Units": 34,
+        "AlternateUnits": null,
+        "UnitConflict": false,
+        "Classification": "Refi Watch",
+        "SourceConfidence": "High",
+        "DataStatus": "Ready",
+        "DataGaps": 0,
+        "RiskLevel": "Watch",
+        "Noi": null,
+        "PreviousNoi": null,
+        "Dscr": null,
+        "YoyNoiChange": null,
+        "AffordableUnits": 0,
+        "MarketUnits": 0,
+        "SupportiveUnits": 0
+      },
+      {
+        "PropertyId": "BLD_EA",
+        "Name": "Evergreen Apartments",
+        "City": "New Westminster",
+        "Status": "Active",
+        "Included": true,
+        "Units": 61,
+        "AlternateUnits": null,
+        "UnitConflict": false,
+        "Classification": "Refi Watch",
+        "SourceConfidence": "High",
+        "DataStatus": "Ready",
+        "DataGaps": 0,
+        "RiskLevel": "Watch",
+        "Noi": null,
+        "PreviousNoi": null,
+        "Dscr": null,
+        "YoyNoiChange": null,
+        "AffordableUnits": 0,
+        "MarketUnits": 0,
+        "SupportiveUnits": 0
+      },
+      {
+        "PropertyId": "BLD_EE",
+        "Name": "Evelyn Estates",
+        "City": "Surrey",
+        "Status": "Active",
+        "Included": true,
+        "Units": 36,
+        "AlternateUnits": null,
+        "UnitConflict": false,
+        "Classification": "Refi Watch",
+        "SourceConfidence": "High",
+        "DataStatus": "Ready",
+        "DataGaps": 0,
+        "RiskLevel": "Watch",
+        "Noi": null,
+        "PreviousNoi": null,
+        "Dscr": null,
+        "YoyNoiChange": null,
+        "AffordableUnits": 0,
+        "MarketUnits": 0,
+        "SupportiveUnits": 0
+      },
+      {
+        "PropertyId": "BLD_JP",
+        "Name": "Jessica Place",
+        "City": "Surrey",
+        "Status": "Active",
+        "Included": true,
+        "Units": 40,
+        "AlternateUnits": null,
+        "UnitConflict": false,
+        "Classification": "Refi Watch",
+        "SourceConfidence": "High",
+        "DataStatus": "Ready",
+        "DataGaps": 0,
+        "RiskLevel": "Watch",
+        "Noi": null,
+        "PreviousNoi": null,
+        "Dscr": null,
+        "YoyNoiChange": null,
+        "AffordableUnits": 0,
+        "MarketUnits": 0,
+        "SupportiveUnits": 0
+      },
+      {
+        "PropertyId": "BLD_MH",
+        "Name": "Margaret Heights",
+        "City": "CNV",
+        "Status": "Active",
+        "Included": true,
+        "Units": 19,
+        "AlternateUnits": null,
+        "UnitConflict": false,
+        "Classification": "Refi Watch",
+        "SourceConfidence": "High",
+        "DataStatus": "Ready",
+        "DataGaps": 0,
+        "RiskLevel": "Watch",
+        "Noi": null,
+        "PreviousNoi": null,
+        "Dscr": null,
+        "YoyNoiChange": null,
+        "AffordableUnits": 0,
+        "MarketUnits": 0,
+        "SupportiveUnits": 0
+      },
+      {
+        "PropertyId": "BLD_MM",
+        "Name": "Murray Manor",
+        "City": "Burnaby",
+        "Status": "Active",
+        "Included": true,
+        "Units": 47,
+        "AlternateUnits": null,
+        "UnitConflict": false,
+        "Classification": "Refi Watch",
+        "SourceConfidence": "High",
+        "DataStatus": "Ready",
+        "DataGaps": 0,
+        "RiskLevel": "Watch",
+        "Noi": null,
+        "PreviousNoi": null,
+        "Dscr": null,
+        "YoyNoiChange": null,
+        "AffordableUnits": 0,
+        "MarketUnits": 0,
+        "SupportiveUnits": 0
+      },
+      {
+        "PropertyId": "BLD_NT",
+        "Name": "Natalia Terrace",
+        "City": "Vancouver",
+        "Status": "Active",
+        "Included": true,
+        "Units": 40,
+        "AlternateUnits": null,
+        "UnitConflict": false,
+        "Classification": "Refi Watch",
+        "SourceConfidence": "High",
+        "DataStatus": "Ready",
+        "DataGaps": 0,
+        "RiskLevel": "Watch",
+        "Noi": null,
+        "PreviousNoi": null,
+        "Dscr": null,
+        "YoyNoiChange": null,
+        "AffordableUnits": 0,
+        "MarketUnits": 0,
+        "SupportiveUnits": 0
+      },
+      {
+        "PropertyId": "BLD_NG",
+        "Name": "Newton Green",
+        "City": "Surrey",
+        "Status": "Active",
+        "Included": true,
+        "Units": 49,
+        "AlternateUnits": null,
+        "UnitConflict": false,
+        "Classification": "Refi Watch",
+        "SourceConfidence": "High",
+        "DataStatus": "Ready",
+        "DataGaps": 0,
+        "RiskLevel": "Watch",
+        "Noi": null,
+        "PreviousNoi": null,
+        "Dscr": null,
+        "YoyNoiChange": null,
+        "AffordableUnits": 0,
+        "MarketUnits": 0,
+        "SupportiveUnits": 0
+      },
+      {
+        "PropertyId": "BLD_RG",
+        "Name": "Rosemary Green",
+        "City": "Surrey",
+        "Status": "Active",
+        "Included": true,
+        "Units": 38,
+        "AlternateUnits": null,
+        "UnitConflict": false,
+        "Classification": "Refi Watch",
+        "SourceConfidence": "High",
+        "DataStatus": "Ready",
+        "DataGaps": 0,
+        "RiskLevel": "Watch",
+        "Noi": null,
+        "PreviousNoi": null,
+        "Dscr": null,
+        "YoyNoiChange": null,
+        "AffordableUnits": 0,
+        "MarketUnits": 0,
+        "SupportiveUnits": 0
+      },
+      {
+        "PropertyId": "BLD_AS",
+        "Name": "1656 Adanac Street",
+        "City": "Vancouver",
+        "Status": "New Dev",
+        "Included": true,
+        "Units": 97,
+        "AlternateUnits": null,
+        "UnitConflict": false,
+        "Classification": "New Build",
+        "SourceConfidence": "High",
+        "DataStatus": "Ready",
+        "DataGaps": 0,
+        "RiskLevel": "Stable",
+        "Noi": null,
+        "PreviousNoi": null,
+        "Dscr": null,
+        "YoyNoiChange": null,
+        "AffordableUnits": 68,
+        "MarketUnits": 29,
+        "SupportiveUnits": 0
+      },
+      {
+        "PropertyId": "BLD_PS",
+        "Name": "450 Pacific Street",
+        "City": "Vancouver",
+        "Status": "New Dev",
+        "Included": true,
+        "Units": 91,
+        "AlternateUnits": null,
+        "UnitConflict": false,
+        "Classification": "New Build",
+        "SourceConfidence": "High",
+        "DataStatus": "Ready",
+        "DataGaps": 0,
+        "RiskLevel": "Stable",
+        "Noi": null,
+        "PreviousNoi": null,
+        "Dscr": null,
+        "YoyNoiChange": null,
+        "AffordableUnits": 66,
+        "MarketUnits": 25,
+        "SupportiveUnits": 0
+      },
+      {
+        "PropertyId": "BLD_PM",
+        "Name": "The Creek, Port Moody",
+        "City": "Port Moody",
+        "Status": "New Dev",
+        "Included": true,
+        "Units": 245,
+        "AlternateUnits": 328,
+        "UnitConflict": true,
+        "Classification": "New Build",
+        "SourceConfidence": "Conflict",
+        "DataStatus": "Needs review",
+        "DataGaps": 1,
+        "RiskLevel": "High",
+        "Noi": null,
+        "PreviousNoi": null,
+        "Dscr": null,
+        "YoyNoiChange": null,
+        "AffordableUnits": 98,
+        "MarketUnits": 147,
+        "SupportiveUnits": 0
+      },
+      {
+        "PropertyId": "BLD_CD",
+        "Name": "800 Commercial Drive",
+        "City": "Vancouver",
+        "Status": "New Dev",
+        "Included": true,
+        "Units": 108,
+        "AlternateUnits": 93,
+        "UnitConflict": true,
+        "Classification": "New Build",
+        "SourceConfidence": "Review",
+        "DataStatus": "Needs review",
+        "DataGaps": 1,
+        "RiskLevel": "High",
+        "Noi": null,
+        "PreviousNoi": null,
+        "Dscr": null,
+        "YoyNoiChange": null,
+        "AffordableUnits": 75,
+        "MarketUnits": 32,
+        "SupportiveUnits": 0
+      }
+    ],
+    "RiskItems": [
+      {
+        "Name": "Port Moody unit count conflict: latest modeled 245 vs legacy 328",
+        "Level": "High",
+        "Note": "Use 245 in calculations; retain 328 as alternate until ENF confirms."
+      },
+      {
+        "Name": "800 Commercial unit count conflict: latest 108 vs legacy 93",
+        "Level": "Medium",
+        "Note": "Use 108 in calculations; retain 93 as alternate pending confirmation."
+      },
+      {
+        "Name": "Balance-sheet cash ($6.231M) and bond-model reserve balances ($1.400M opening / $0.821M closing) use different definitions",
+        "Level": "High",
+        "Note": "Do not treat either amount as unrestricted debt-service liquidity until mapped."
+      },
+      {
+        "Name": "Affordability mix is not classified for 467 existing in-scope units",
+        "Level": "Medium",
+        "Note": "Show existing units as unclassified; do not extrapolate new-project mix."
+      },
+      {
+        "Name": "Capital needs plan has not been reconciled to the latest source package",
+        "Level": "Medium",
+        "Note": "Keep capital-needs readiness conditional."
+      },
+      {
+        "Name": "Affordability, covenant, refinance and disposition restrictions remain unreviewed",
+        "Level": "Medium",
+        "Note": "Keep mission/restriction readiness partial."
+      },
+      {
+        "Name": "Alma Blackwell is in the portfolio register but excluded from the financial model",
+        "Level": "Medium",
+        "Note": "Show 17 portfolio records and 16 in-scope properties; do not mix the two counts."
+      },
+      {
+        "Name": "DATA_DEBT_SCHEDULE is a manually transcribed control table and is not linked live to Bond v18.",
+        "Level": "Medium",
+        "Note": "Treat it as a verified static input. Re-import or re-transcribe and reconcile whenever SRC-004 changes."
+      },
+      {
+        "Name": "The original Bond v18 workbook contains broken references in its summary tabs.",
+        "Level": "Medium",
+        "Note": "Use the populated MVP v1.1 tables and full live underwriting v13.1 as acceptance references. Retain Bond v18 as raw source evidence only."
+      }
+    ],
+    "DebtHorizon": [
+      {
+        "Label": "Estimated maturity 2037",
+        "Year": 2037,
+        "Amount": 131454769
+      },
+      {
+        "Label": "Estimated maturity 2038",
+        "Year": 2038,
+        "Amount": 97713089
+      }
+    ],
+    "FinancialTrend": [
+      {
+        "Period": "2025-2026",
+        "Revenue": 9352051.4993999992,
+        "OperatingExpenses": 7271155.3266788004,
+        "Noi": 2080896.1727211988,
+        "DebtService": 2659916,
+        "Dscr": 0.7823164989876367524387988192
+      },
+      {
+        "Period": "2026-2027",
+        "Revenue": 12696486.415908122,
+        "OperatingExpenses": 8614110.8327498017,
+        "Noi": 4082375.5831583203,
+        "DebtService": 2591047,
+        "Dscr": 1.5755698693070099847667757474
+      },
+      {
+        "Period": "2027-2028",
+        "Revenue": 20486839.677352883,
+        "OperatingExpenses": 11106485.2510524667,
+        "Noi": 9380354.4263004163,
+        "DebtService": 6054801,
+        "Dscr": 1.5492423989327504405181937441
+      },
+      {
+        "Period": "2028-2029",
+        "Revenue": 23804779.906901665,
+        "OperatingExpenses": 12133018.7642583260,
+        "Noi": 11671761.1426433390,
+        "DebtService": 9436608,
+        "Dscr": 1.2368598062612475796387854619
+      },
+      {
+        "Period": "2029-2030",
+        "Revenue": 26628295.394337088,
+        "OperatingExpenses": 12953852.3659029401,
+        "Noi": 13674443.0284341479,
+        "DebtService": 13731557,
+        "Dscr": 0.9958406776765481073996197227
+      },
+      {
+        "Period": "2030-2031",
+        "Revenue": 27221516.866271142,
+        "OperatingExpenses": 13268836.1249015325,
+        "Noi": 13952680.7413696095,
+        "DebtService": 13715739,
+        "Dscr": 1.0172751713465537292595025321
+      },
+      {
+        "Period": "2031-2032",
+        "Revenue": 27905966.863675941,
+        "OperatingExpenses": 13580807.5328120224,
+        "Noi": 14325159.3308639186,
+        "DebtService": 14812996,
+        "Dscr": 0.9670669816466512648757888006
+      },
+      {
+        "Period": "2032-2033",
+        "Revenue": 28145780.057912,
+        "OperatingExpenses": 13580953.5099871802,
+        "Noi": 14564826.5479248198,
+        "DebtService": 13376363,
+        "Dscr": 1.0888480334994512185412432363
+      },
+      {
+        "Period": "2033-2034",
+        "Revenue": 28785954.116249535,
+        "OperatingExpenses": 13894396.3088966456,
+        "Noi": 14891557.8073528894,
+        "DebtService": 13365189,
+        "Dscr": 1.1142048052857980085429394227
+      },
+      {
+        "Period": "2034-2035",
+        "Revenue": 29414896.142274756,
+        "OperatingExpenses": 14215511.8911174402,
+        "Noi": 15199384.2511573158,
+        "DebtService": 13328257,
+        "Dscr": 1.1403879930554547229994139519
+      }
+    ],
+    "Agreements": [],
+    "Outcomes": [
+      {
+        "Outcome": "Housing stability",
+        "CurrentEvidence": "1,008 modeled units",
+        "PrimarySource": "Property and unit records",
+        "Status": "Needs review"
+      },
+      {
+        "Outcome": "Affordability",
+        "CurrentEvidence": "307 classified affordable units",
+        "PrimarySource": "Unit mix / agreements",
+        "Status": "Needs review"
+      },
+      {
+        "Outcome": "Supportive housing",
+        "CurrentEvidence": "Not assessed",
+        "PrimarySource": "Unit mix",
+        "Status": "Not assessed"
+      }
+    ],
+    "AssessmentAreas": [
+      {
+        "Area": "Financial resilience",
+        "Status": "Conditional",
+        "Note": "Operating data is present; debt coverage is not assessed."
+      },
+      {
+        "Area": "Governance \u0026 organization",
+        "Status": "Not assessed",
+        "Note": "No governance obligation records were supplied."
+      },
+      {
+        "Area": "Asset management",
+        "Status": "Conditional",
+        "Note": "2 properties have review items."
+      },
+      {
+        "Area": "Mission \u0026 public value",
+        "Status": "Conditional",
+        "Note": "467 units remain unclassified."
+      },
+      {
+        "Area": "Data quality \u0026 evidence",
+        "Status": "Needs review",
+        "Note": "3 intake warnings require review."
+      }
+    ],
+    "GovernanceIndicators": [
+      {
+        "Indicator": "Board capacity",
+        "Status": "Not assessed"
+      },
+      {
+        "Indicator": "Board independence",
+        "Status": "Not assessed"
+      },
+      {
+        "Indicator": "Policies \u0026 controls",
+        "Status": "Not assessed"
+      },
+      {
+        "Indicator": "Strategic oversight",
+        "Status": "Not assessed"
+      }
+    ],
+    "CapacityIndicators": [
+      {
+        "Area": "Financial management",
+        "Status": "Conditional"
+      },
+      {
+        "Area": "Asset management",
+        "Status": "Conditional"
+      },
+      {
+        "Area": "Development capacity",
+        "Status": "Needs review"
+      },
+      {
+        "Area": "Staffing \u0026 skills",
+        "Status": "Not assessed"
+      },
+      {
+        "Area": "Data \u0026 reporting",
+        "Status": "Needs review"
+      }
+    ],
+    "DecisionRights": []
+  },
+  "Warnings": [
+    "Unrestricted liquidity was not explicitly classified; liquidity is not assessed.",
+    "A quantified funded/unfunded capital-needs plan was not supplied.",
+    "Agreement and restriction evidence was not supplied; mission obligations are not assessed."
+  ]
+}
