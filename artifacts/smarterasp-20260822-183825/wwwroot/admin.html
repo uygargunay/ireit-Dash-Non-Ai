@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IREI Admin Review</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="admin-body">
+  <main class="admin-shell">
+    <header class="admin-header">
+      <div>
+        <div class="eyebrow">IREI ADMINISTRATION</div>
+        <h1>Private generated workbook review</h1>
+      </div>
+      <a href="/">Return to organization view</a>
+    </header>
+
+    <section class="panel admin-auth">
+      <label class="field">
+        <span>Development admin key</span>
+        <input id="admin-key" type="password" placeholder="Enter admin key" autocomplete="current-password">
+      </label>
+      <button id="load-submissions" class="button primary" type="button">Load submissions</button>
+      <div id="admin-error" class="alert error hidden" role="alert"></div>
+    </section>
+
+    <section class="panel">
+      <div class="table-header">
+        <div>
+          <div class="section-kicker">PRIVATE OUTPUTS</div>
+          <h2>Submission register</h2>
+        </div>
+      </div>
+      <div id="admin-list" class="admin-list empty-state">Enter the admin key to load submissions.</div>
+    </section>
+  </main>
+  <script src="admin.js"></script>
+</body>
+</html>

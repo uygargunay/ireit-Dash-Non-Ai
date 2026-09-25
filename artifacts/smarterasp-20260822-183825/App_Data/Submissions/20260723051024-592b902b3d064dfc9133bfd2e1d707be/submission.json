@@ -1,0 +1,166 @@
+{
+  "Id": "20260723051024-592b902b3d064dfc9133bfd2e1d707be",
+  "OrganizationName": "Uygar Test",
+  "OriginalFileName": "NGO_B_Modeling_2026-07-07 Structural change v12 final.xlsx",
+  "Status": "Completed",
+  "ProfileName": "ngo-b-demo",
+  "CreatedUtc": "2026-07-23T05:10:25.0165484+00:00",
+  "CompletedUtc": "2026-07-23T05:10:27.0486337+00:00",
+  "InputPath": "C:\\Users\\Uygar\\source\\repos\\IREI_MVP_Project\\src\\IreiMvp.Web\\App_Data\\Submissions\\20260723051024-592b902b3d064dfc9133bfd2e1d707be\\input.xlsx",
+  "OutputPath": "C:\\Users\\Uygar\\source\\repos\\IREI_MVP_Project\\src\\IreiMvp.Web\\App_Data\\Submissions\\20260723051024-592b902b3d064dfc9133bfd2e1d707be\\admin-output.xlsx",
+  "Dashboard": {
+    "OrganizationName": "Uygar Test",
+    "ReportingPeriod": "2026",
+    "ProfileName": "ngo-b-demo",
+    "OverallStatus": "Conditional",
+    "TotalProperties": 17,
+    "IncludedProperties": 16,
+    "ExistingAssets": 12,
+    "NewProjects": 4,
+    "ModeledUnits": 1076,
+    "AffordableUnits": 75,
+    "MarketUnits": 33,
+    "Revenue": 17600000,
+    "OperatingExpenses": 8300000,
+    "Noi": 9300000,
+    "DebtService": 14749710.91,
+    "Affo": -5449710.91,
+    "Dscr": 0.6305208323571136,
+    "DataReadinessScore": 68,
+    "FinancialReadinessScore": 55,
+    "GovernanceReadinessScore": 72,
+    "ImpactReadinessScore": 62,
+    "RiskManagementScore": 58,
+    "MissionFocus": "Define the organization\u2019s value, risk, readiness and affordability impact before selecting a funding or capital pathway.",
+    "Warnings": [
+      "Port Moody unit count conflict: 245 vs 328",
+      "Restricted versus unrestricted cash is not confirmed",
+      "Capital needs plan is not fully reviewed",
+      "Affordability, covenant and refinance restrictions require review"
+    ],
+    "Properties": [
+      {
+        "PropertyId": "BLD_AB",
+        "Name": "Alma Blackwell",
+        "City": "",
+        "Status": "Active",
+        "Included": false,
+        "Units": 56,
+        "Classification": "Excluded"
+      },
+      {
+        "PropertyId": "BLD_AC",
+        "Name": "Antkiw Court",
+        "City": "",
+        "Status": "Active",
+        "Included": true,
+        "Units": 48,
+        "Classification": "Stable"
+      },
+      {
+        "PropertyId": "BLD_BT",
+        "Name": "Beatrice Terrace",
+        "City": "",
+        "Status": "Active",
+        "Included": true,
+        "Units": 34,
+        "Classification": "Stable"
+      },
+      {
+        "PropertyId": "BLD_CH",
+        "Name": "Capilano House",
+        "City": "",
+        "Status": "Active",
+        "Included": true,
+        "Units": 36,
+        "Classification": "Stable"
+      },
+      {
+        "PropertyId": "BLD_CC",
+        "Name": "Constance Court",
+        "City": "",
+        "Status": "Active",
+        "Included": true,
+        "Units": 25,
+        "Classification": "Stable"
+      },
+      {
+        "PropertyId": "BLD_PM",
+        "Name": "The Creek, Port Moody",
+        "City": "Port Moody",
+        "Status": "New Dev",
+        "Included": true,
+        "Units": 245,
+        "Classification": "New Build"
+      },
+      {
+        "PropertyId": "BLD_CD",
+        "Name": "800 Commercial Drive",
+        "City": "Vancouver",
+        "Status": "New Dev",
+        "Included": true,
+        "Units": 154,
+        "Classification": "New Build"
+      }
+    ],
+    "RiskItems": [
+      {
+        "Name": "Mission risk",
+        "Level": "Low",
+        "Note": "Mission evidence is retained separately from financial viability."
+      },
+      {
+        "Name": "Liquidity risk",
+        "Level": "High",
+        "Note": "Near-term AFFO remains negative in the simplified MVP snapshot."
+      },
+      {
+        "Name": "Data risk",
+        "Level": "Moderate",
+        "Note": "Unit counts, cash restrictions, capital needs and agreements require confirmation."
+      },
+      {
+        "Name": "Operational risk",
+        "Level": "Moderate",
+        "Note": "The organization has an experienced operating base, but source reconciliation remains incomplete."
+      },
+      {
+        "Name": "Policy / restriction risk",
+        "Level": "Moderate",
+        "Note": "Agreement and covenant review is partial."
+      }
+    ],
+    "DebtHorizon": [
+      {
+        "Year": 2027,
+        "Amount": 2050000
+      },
+      {
+        "Year": 2028,
+        "Amount": 3950000
+      },
+      {
+        "Year": 2029,
+        "Amount": 3375000
+      },
+      {
+        "Year": 2030,
+        "Amount": 2480000
+      },
+      {
+        "Year": 2031,
+        "Amount": 1840000
+      },
+      {
+        "Year": 2034,
+        "Amount": 1049710.91
+      }
+    ]
+  },
+  "Warnings": [
+    "Port Moody unit count conflict: 245 vs 328",
+    "Restricted versus unrestricted cash is not confirmed",
+    "Capital needs plan is not fully reviewed",
+    "Affordability, covenant and refinance restrictions require review"
+  ]
+}
