@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IREI Stage 1 V3.1</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="v3.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="/v3.html" aria-label="IREI V3.1 Portfolio Overview"><strong>IREI</strong><span>Stage 1 Platform · V3.1</span></a>
+      <div id="context" class="organization-chip">No assessment loaded</div>
+      <nav id="v3-nav" class="page-nav" aria-label="IREI V3.1 platform pages"></nav>
+      <div class="sidebar-footer"><a href="/">Open V2 workspace</a><span>Financial pilot · Working assessments</span></div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div class="title-block"><h1 id="title">Financial Resilience &amp; Debt</h1><p id="scope">Upload a supplied V3 template to begin.</p></div>
+        <div class="topbar-meta"><div><span>Assessment</span><strong id="assessment-status">Not loaded</strong></div><div><span>Methodology</span><strong id="methodology">V3.1 pilot</strong></div></div>
+        <div class="topbar-actions"><button type="button" id="open-upload" class="button primary">Upload / Update</button></div>
+      </header>
+      <section class="content">
+        <div id="filters" class="v3-filters panel panel-pad" hidden>
+          <label class="select-control"><span>Fiscal year</span><select id="year"></select></label>
+          <label class="select-control"><span>Scenario</span><select id="scenario"></select></label>
+          <label class="select-control"><span>Scope</span><select id="property"></select></label>
+        </div>
+        <div id="body"></div>
+      </section>
+    </main>
+  </div>
+  <dialog id="upload-dialog" class="modal">
+    <form id="upload" method="dialog">
+      <div class="modal-head"><div><span class="eyebrow">V3.1 WORKING ASSESSMENT</span><h2>Upload or update an assessment</h2></div><button id="close-upload" class="icon-button" type="button" aria-label="Close">×</button></div>
+      <p class="muted">Upload the current customer or internal V3 template. Existing-document submissions require source mapping review before Page 3 calculations.</p>
+      <label class="drop-zone"><input type="file" name="file" accept=".xlsx" required><b>Choose an .xlsx workbook</b><span>Current V3 template</span></label>
+      <p id="upload-status" class="muted" role="status"></p>
+      <div class="modal-actions"><button type="button" id="cancel-upload" class="button secondary">Cancel</button><button type="submit" class="button primary">Process workbook</button></div>
+    </form>
+  </dialog>
+  <script src="v3.js" defer></script>
+</body>
+</html>

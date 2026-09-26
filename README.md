@@ -1,5 +1,7 @@
 # IREI Stage 1 V2 — Non-AI
 
+> V3.1 financial pilot: see [the V3 implementation and handoff](docs/V3-IMPLEMENTATION.md). Open `/v3.html` to import the current customer or internal template. The original V2 workflow remains available at `/`.
+
 This ASP.NET Core 8 application turns an uploaded organization workbook into a private, eight-page portfolio stewardship dashboard and a standardized IREI workbook.
 
 The non-AI edition is deterministic. It does not call an AI service, infer investor recommendations, create a 100-point readiness score, or silently fill missing evidence. Unsupported or absent fields are shown as **Not assessed** and retained for human review.

@@ -21,6 +21,7 @@ public static class Program
         builder.Services.AddSingleton<VersionComparisonEngine>();
         builder.Services.AddSingleton<V2WorkbookSync>();
         builder.Services.AddSingleton<SubmissionStore>();
+        builder.Services.AddSingleton<V3FinancialStore>();
 
         var app = builder.Build();
         app.UseDefaultFiles();
@@ -34,6 +35,24 @@ public static class Program
         }));
 
         app.MapPost("/api/submissions", UploadAssessment);
+        app.MapPost("/api/v3/assessments", async (HttpRequest request, V3FinancialStore store, CancellationToken ct) =>
+        {
+            if (!request.HasFormContentType) return Results.BadRequest(new { error = "Upload a multipart .xlsx file." });
+            var file = (await request.ReadFormAsync(ct)).Files.GetFile("file");
+            if (file is null || file.Length == 0 || !file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+                return Results.BadRequest(new { error = "Choose a non-empty .xlsx file." });
+            try { await using var stream = file.OpenReadStream(); return Results.Ok(await store.ImportAsync(stream, file.FileName, ct)); }
+            catch (InvalidDataException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+        app.MapGet("/api/v3/assessments/{id}", async (string id, V3FinancialStore store, CancellationToken ct) =>
+            await store.GetAsync(id, ct) is { } result ? Results.Ok(result) : Results.NotFound());
+        app.MapPost("/api/v3/assessments/{id}/approve", async (string id, HttpRequest request, V3FinancialStore store,
+            IOptions<IreiOptions> options, CancellationToken ct) =>
+        {
+            if (!IsAdmin(request, options.Value)) return Results.Unauthorized();
+            try { return await store.ApproveAsync(id, ct) is { } result ? Results.Ok(result) : Results.NotFound(); }
+            catch (InvalidDataException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
         app.MapGet("/api/submissions/{id}", async (
             string id,
             SubmissionStore store,
