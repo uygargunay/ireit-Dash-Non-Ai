@@ -123,6 +123,14 @@ public sealed class V3FinancialStore(XlsxWorkbookService xlsx, IWebHostEnvironme
                 row.Text("Source_ID *", "Source_ID"), row.Text("Source_Location"),
                 $"33_DEBT_SCHEDULE!J{row.RowNumber}:K{row.RowNumber}"));
         }
+        foreach (var property in result.Facts.Where(f => f.MetricCode == "DEBT_SERVICE_SOURCE")
+                     .GroupBy(f => f.PropertyId))
+        {
+            var negative = property.Where(f => f.Amount < 0).ToList();
+            if (negative.Count == 0) continue;
+            var years = string.Join(", ", negative.Select(f => f.FiscalYear).Distinct().Order());
+            result.Exceptions.Add($"{property.Key}: source-reported debt service is negative in {years}. Review the source sign convention; these source values do not substitute for a confirmed annual debt schedule.");
+        }
         Calculate(result, schedules);
         return result;
     }
@@ -161,15 +169,13 @@ public sealed class V3FinancialStore(XlsxWorkbookService xlsx, IWebHostEnvironme
             Add("NOI_MARGIN", revenue is > 0 && noi.HasValue ? noi / revenue : null, "CALC-NOI-MARGIN",
                 revenue == 0 ? "Not Applicable" : "Missing");
             // The customer debt register has no annual period key. Never attach its current value to every year.
-            var signUnresolved = a.Facts.Any(f => f.PropertyId == prefix.PropertyId &&
-                f.MetricCode == "DEBT_SERVICE_SOURCE" && f.Amount < 0);
-            var explicitZeroDebt = !signUnresolved && debtFacts.Count == 1 && debtFacts[0].Amount == 0;
-            var debt = !signUnresolved && debtFacts.Count == 1 && debtFacts[0].Amount >= 0
+            var explicitZeroDebt = debtFacts.Count == 1 && debtFacts[0].Amount == 0;
+            var debt = debtFacts.Count == 1 && debtFacts[0].Amount >= 0
                 ? debtFacts[0].Amount : (decimal?)null;
-            if (debtFacts.Count > 1 || debtFacts.Any(f => f.Amount < 0) || signUnresolved)
-                a.Exceptions.Add($"{prefix.PropertyId} {prefix.FiscalYear}: debt service sign or duplicate source requires review; DSCR is Missing.");
+            if (debtFacts.Count > 1 || debtFacts.Any(f => f.Amount < 0))
+                a.Exceptions.Add($"{prefix.PropertyId} {prefix.FiscalYear}: confirmed debt schedule has duplicate or negative service; DSCR is Missing.");
             a.Metrics.Add(new V3Metric(prefix.PropertyId, prefix.FiscalYear, prefix.Scenario, "DEBT_SERVICE", debt,
-                debt.HasValue ? "Available" : debtFacts.Count == 0 && !signUnresolved ? "Missing" : "Conflict", "CALC-DEBT-SVC", "1.0",
+                debt.HasValue ? "Available" : debtFacts.Count == 0 ? "Missing" : "Conflict", "CALC-DEBT-SVC", "1.0",
                 debtFacts.Select(f => f.Id).ToArray(), debtFacts.Select(f => $"{f.SourceId}: {f.SourceLocation} ({f.Cell})").ToArray()));
             var dscr = noi.HasValue && debt is > 0 ? noi / debt : null;
             Add("DSCR", dscr, "CALC-DSCR", explicitZeroDebt ? "Not Applicable" : "Missing");
