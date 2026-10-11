@@ -22,10 +22,13 @@ public static class Program
         builder.Services.AddSingleton<V2WorkbookSync>();
         builder.Services.AddSingleton<SubmissionStore>();
         builder.Services.AddSingleton<V3FinancialStore>();
+        builder.Services.AddSingleton<V4WorkbookImporter>();
+        builder.Services.AddSingleton<V4Store>();
 
         var app = builder.Build();
         app.UseDefaultFiles();
         app.UseStaticFiles();
+        app.MapV4();
 
         app.MapGet("/health", () => Results.Ok(new
         {

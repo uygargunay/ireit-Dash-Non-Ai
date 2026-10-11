@@ -1,4 +1,6 @@
-# IREI Stage 1 V2 — Non-AI
+# IREI Stage 1 — Non-AI
+
+> V4.2 underwriting pilot: open `/v4.html`. See [implementation and deployment](docs/V4-IMPLEMENTATION.md) and [calculation validation](docs/V4-VALIDATION.md). The seven-page workspace uses the finalized V4.2 template and server-side calculations, with source evidence, shared review records and baseline/outcome tracking. Enter the configured pilot access key before importing a workbook. Production approval and external report release remain blocked.
 
 > V3.1 financial pilot: see [the V3 implementation and handoff](docs/V3-IMPLEMENTATION.md). Open `/v3.html` to import the current customer or internal template. The original V2 workflow remains available at `/`.
 
