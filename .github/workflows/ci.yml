@@ -39,6 +39,8 @@ jobs:
         run: |
           node --check src/IreiMvp.Web/wwwroot/app.js
           node --check src/IreiMvp.Web/wwwroot/admin.js
+          node --check src/IreiMvp.Web/wwwroot/v3.js
+          node --check src/IreiMvp.Web/wwwroot/v4.js
 
       - name: Restore
         run: dotnet restore IreiMvp.sln
@@ -48,3 +50,9 @@ jobs:
 
       - name: API smoke test
         run: bash tests/smoke_api.sh
+
+      - name: V4 workbook and calculation parity
+        run: dotnet run --configuration Release --project tests/IreiMvp.V4.Tests -- .
+
+      - name: V4 authenticated API integration
+        run: V4_CONFIGURATION=Release python tests/smoke_v4.py
