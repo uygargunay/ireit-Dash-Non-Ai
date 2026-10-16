@@ -24,11 +24,15 @@ public static class Program
         builder.Services.AddSingleton<V3FinancialStore>();
         builder.Services.AddSingleton<V4WorkbookImporter>();
         builder.Services.AddSingleton<V4Store>();
+        builder.Services.AddSingleton<IntakeExtractor>();
+        builder.Services.AddSingleton<IntakeExporter>();
+        builder.Services.AddSingleton<IntakeStore>();
 
         var app = builder.Build();
         app.UseDefaultFiles();
         app.UseStaticFiles();
         app.MapV4();
+        app.MapIntake();
 
         app.MapGet("/health", () => Results.Ok(new
         {

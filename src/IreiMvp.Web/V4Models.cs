@@ -9,6 +9,7 @@ public sealed class V4Assessment
     public string Currency { get; set; } = "";
     public string Sha256 { get; set; } = "";
     public string FileName { get; set; } = "";
+    public string? PriorRuntimeAssessmentId { get; set; }
     public string Status { get; set; } = "Working";
     public string MethodologyVersion { get; set; } = "V4.2-PILOT/1";
     public int Version { get; set; } = 1;

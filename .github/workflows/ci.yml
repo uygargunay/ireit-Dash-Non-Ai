@@ -41,6 +41,7 @@ jobs:
           node --check src/IreiMvp.Web/wwwroot/admin.js
           node --check src/IreiMvp.Web/wwwroot/v3.js
           node --check src/IreiMvp.Web/wwwroot/v4.js
+          node --check src/IreiMvp.Web/wwwroot/intake.js
 
       - name: Restore
         run: dotnet restore IreiMvp.sln
@@ -56,3 +57,6 @@ jobs:
 
       - name: V4 authenticated API integration
         run: V4_CONFIGURATION=Release python tests/smoke_v4.py
+
+      - name: Spreadsheet intake review and update integration
+        run: python tests/smoke_intake.py
