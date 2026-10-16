@@ -84,7 +84,15 @@ public sealed class V4WorkbookImporter(XlsxWorkbookService xlsx)
             { result.ImportFindings.Add($"{sheet}!{row.Row}: invalid fiscal year {year}; analyst normalization required."); continue; }
             var mapping = mappings.GetValueOrDefault(row.Text("Mapping_ID"));
             var value = row.Number(amount); var code = row.Text(codeField);
-            if (sheet == "33_DEBT_SCHEDULE") { value = row.Number("Principal_Payment") + row.Number("Interest_Payment"); code = "DEBT_SERVICE"; }
+            var amountField = amount;
+            if (sheet == "33_DEBT_SCHEDULE")
+            {
+                var principal = row.Number("Principal_Payment"); var interest = row.Number("Interest_Payment");
+                value = principal + interest; code = "DEBT_SERVICE";
+                // A reviewed source total is supported without inventing a principal/interest split.
+                if (principal is null && interest is null && row.Text("Review_Status") is "Verified" or "Confirmed")
+                { value = row.Number("Total_Debt_Service"); amountField = "Total_Debt_Service"; }
+            }
             if (sheet == "34_CASH_RESERVES") code = "RESERVE_CLOSING";
             if (sheet == "31_PORTFOLIO_UNITS") code = "HOMES_TOTAL";
             var grain = row.Text("Record_Grain");
@@ -94,15 +102,15 @@ public sealed class V4WorkbookImporter(XlsxWorkbookService xlsx)
             if (state != "Available") value = null;
             var header = workbook.Sheets[sheet];
             var headerRow = Enumerable.Range(1, Math.Min(20, header.MaxRow)).First(r => Enumerable.Range(1, header.MaxColumn)
-                .Any(c => WorkbookValue.Text(header.GetValue(r, c)).Replace(" *", "") == amount));
-            var amountColumn = Enumerable.Range(1, header.MaxColumn).First(c => WorkbookValue.Text(header.GetValue(headerRow, c)).Replace(" *", "") == amount);
+                .Any(c => WorkbookValue.Text(header.GetValue(r, c)).Replace(" *", "") == amountField));
+            var amountColumn = Enumerable.Range(1, header.MaxColumn).First(c => WorkbookValue.Text(header.GetValue(headerRow, c)).Replace(" *", "") == amountField);
             var cell = XlsxAddress.ToCellReference(row.Row, amountColumn); var chain = new List<string>();
             Resolve(workbook, sheet, cell, chain, 0);
-            if (sheet == "33_DEBT_SCHEDULE") Resolve(workbook, sheet, XlsxAddress.ToCellReference(row.Row, amountColumn + 1), chain, 0);
+            if (sheet == "33_DEBT_SCHEDULE" && amountField == "Principal_Payment") Resolve(workbook, sheet, XlsxAddress.ToCellReference(row.Row, amountColumn + 1), chain, 0);
             result.Facts.Add(new V4Fact(row.Id, scope, year, row.Text("Scenario"), code, value, state,
                 grain, row.Text("Review_Status"), mapping?.Text("Mapping_Status") ?? "Unmapped", row.Text("Certainty_Flag"),
                 result.Currency, row.Text("Source_ID"), row.Text("Source_Location"), $"{sheet}!{cell}",
-                row.Formulas.GetValueOrDefault(amount, ""), chain.Distinct().ToArray()));
+                row.Formulas.GetValueOrDefault(amountField, ""), chain.Distinct().ToArray()));
         }
         ValidateEnums(result);
         V4CalculationEngine.Calculate(result);

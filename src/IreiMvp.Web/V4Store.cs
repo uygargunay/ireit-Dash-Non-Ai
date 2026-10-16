@@ -12,14 +12,28 @@ public sealed class V4Store(V4WorkbookImporter importer, IWebHostEnvironment env
         if (!Guid.TryParseExact(id, "N", out _)) throw new InvalidDataException("Invalid assessment ID.");
         return Path.Combine(Root, id);
     }
-    public async Task<V4Assessment> ImportAsync(Stream input, string fileName, CancellationToken ct)
+    public async Task<V4Assessment> ImportAsync(Stream input, string fileName, CancellationToken ct, string? priorRuntimeId = null)
     {
         var id = Guid.NewGuid().ToString("N"); var folder = Folder(id); Directory.CreateDirectory(folder);
         try
         {
             var path = Path.Combine(folder, "source.xlsx");
             await using (var output = File.Create(path)) await input.CopyToAsync(output, ct);
-            var a = importer.Read(path, id, fileName); await SaveAsync(a, ct); return a;
+            var a = importer.Read(path, id, fileName);
+            if (priorRuntimeId is not null)
+            {
+                var prior = await GetAsync(priorRuntimeId, ct) ?? throw new InvalidDataException("Prior assessment not found.");
+                if (prior.OrganizationId != a.OrganizationId || prior.AssessmentId != a.AssessmentId)
+                    throw new InvalidDataException("Update must preserve organization and assessment identity.");
+                a.PriorRuntimeAssessmentId = prior.Id; a.Baseline = prior.Baseline;
+                a.Events = prior.Events.ToList(); a.Outcomes = prior.Outcomes.ToList();
+                foreach (var sheet in new[] { "45_NARRATIVE", "46_RISKS", "47_OPTIONS", "48_ACTIONS", "49_DECISIONS" })
+                    if (prior.Registers.TryGetValue(sheet, out var rows)) a.Registers[sheet] = rows;
+                Invalidate(a);
+                a.Events.Add(new V4Event(Guid.NewGuid().ToString("N"), "Reviewed source update", prior.Id, a.Version, DateTimeOffset.UtcNow,
+                    "Staff intake review", "New reviewed inputs; original baseline preserved; interpretation requires re-review.", prior.Sha256, a.Sha256));
+            }
+            await SaveAsync(a, ct); return a;
         }
         catch { Directory.Delete(folder, true); throw; }
     }
