@@ -42,6 +42,7 @@ jobs:
           node --check src/IreiMvp.Web/wwwroot/v3.js
           node --check src/IreiMvp.Web/wwwroot/v4.js
           node --check src/IreiMvp.Web/wwwroot/intake.js
+          node --check src/IreiMvp.Web/wwwroot/evidence.js
 
       - name: Restore
         run: dotnet restore IreiMvp.sln
@@ -60,3 +61,9 @@ jobs:
 
       - name: Spreadsheet intake review and update integration
         run: python tests/smoke_intake.py
+
+      - name: Phase 2 evidence roles, lineage and retention
+        run: EVIDENCE_CONFIGURATION=Release python tests/smoke_evidence.py
+
+      - name: Evidence production safety gates
+        run: EVIDENCE_CONFIGURATION=Release python tests/smoke_evidence_production.py

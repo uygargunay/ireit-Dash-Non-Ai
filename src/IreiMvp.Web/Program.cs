@@ -8,6 +8,7 @@ public static class Program
     public static void Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+        builder.AddEvidencePortal();
         builder.Services.Configure<IreiOptions>(builder.Configuration.GetSection("Irei"));
         var maximumUploadBytes = builder.Configuration.GetValue<long?>("Irei:MaximumUploadBytes")
                                  ?? 50 * 1024 * 1024;
@@ -29,10 +30,14 @@ public static class Program
         builder.Services.AddSingleton<IntakeStore>();
 
         var app = builder.Build();
+        app.UseEvidenceProtection();
         app.UseDefaultFiles();
         app.UseStaticFiles();
         app.MapV4();
         app.MapIntake();
+        app.MapEvidencePortal();
+        if (app.Configuration.GetValue<bool>("Evidence:Enabled"))
+            app.Services.GetRequiredService<EvidenceStore>().Initialize(CancellationToken.None).GetAwaiter().GetResult();
 
         app.MapGet("/health", () => Results.Ok(new
         {

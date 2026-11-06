@@ -7,6 +7,13 @@ namespace IreiMvp.Web;
 
 public sealed class IntakeExtractor(XlsxWorkbookService xlsx)
 {
+    public WorkbookSnapshot ReadBytes(byte[] bytes, string name)
+    {
+        if (name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)) return Csv(new UTF8Encoding(false, true).GetString(bytes));
+        using var stream = new MemoryStream(bytes); using var zip = new ZipArchive(stream, ZipArchiveMode.Read);
+        if (zip.Entries.Sum(e => e.Length) > 100 * 1024 * 1024 || zip.Entries.Count > 5000) throw new InvalidDataException("Expanded spreadsheet exceeds limits.");
+        return xlsx.Read(bytes);
+    }
     public static readonly string[] Codes = ["REVENUE", "OPEX", "OPEX_SOCIETY", "OPEX_BUILDINGS", "DEBT_PRINCIPAL", "DEBT_INTEREST", "DEBT_SERVICE", "RESERVE_CLOSING", "HOMES_TOTAL", "REV_SUBSIDY", "REV_RENT_EXISTING", "REV_RENT_NEW", "REV_OTHER"];
     public WorkbookSnapshot Read(string path, string name)
     {

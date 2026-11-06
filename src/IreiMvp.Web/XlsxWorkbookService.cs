@@ -19,6 +19,18 @@ public sealed class XlsxWorkbookService
     public WorkbookSnapshot Read(string path)
     {
         using var archive = ZipFile.OpenRead(path);
+        return ReadArchive(archive, ComputeSha256(path));
+    }
+
+    public WorkbookSnapshot Read(byte[] bytes)
+    {
+        using var stream = new MemoryStream(bytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+        return ReadArchive(archive, Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant());
+    }
+
+    private WorkbookSnapshot ReadArchive(ZipArchive archive, string checksum)
+    {
         var sharedStrings = ReadSharedStrings(archive);
         var sheetPaths = ReadSheetPaths(archive);
         var sheets = new Dictionary<string, SheetSnapshot>(StringComparer.OrdinalIgnoreCase);
@@ -71,7 +83,7 @@ public sealed class XlsxWorkbookService
 
         return new WorkbookSnapshot
         {
-            Sha256 = ComputeSha256(path),
+            Sha256 = checksum,
             Sheets = sheets
         };
     }
