@@ -16,7 +16,11 @@ function otp(secret, offset = 0) {
  async function login(page,email,admin){
   page.on('pageerror',e=>errors.push(e.message));await page.goto(process.env.EVIDENCE_TEST_URL+'/evidence.html');
   await page.locator('#login input[name=email]').fill(email);await page.locator('#login input[name=password]').fill(process.env.EVIDENCE_TEST_PASSWORD);
-  if(admin)await page.locator('#login input[name=totp]').fill(otp(process.env.EVIDENCE_TEST_TOTP_SECRET,1));
+  const requiresMfa=process.env.EVIDENCE_TEST_REQUIRE_MFA==='true';
+  await page.waitForFunction(expected=>document.querySelector('[data-admin-mfa]').hidden===!expected,requiresMfa);
+  assert.equal(await page.locator('#login input[name=totp]').isVisible(),requiresMfa);
+  assert.equal(await page.locator('#accept input[name=totpSecret]').isVisible(),false);
+  if(admin&&requiresMfa)await page.locator('#login input[name=totp]').fill(otp(process.env.EVIDENCE_TEST_TOTP_SECRET,1));
   await page.locator('#login button').click();await page.locator('#workspace').waitFor({state:'visible'});
  }
  const client=await browser.newPage({viewport:{width:1280,height:900}});await login(client,'approver@example.test',false);

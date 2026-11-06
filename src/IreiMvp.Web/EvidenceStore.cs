@@ -32,8 +32,8 @@ public sealed partial class EvidenceStore(EvidenceSecurity security, EvidenceFil
     {
         var path = Path.Combine(Root, "state.enc");
         if (File.Exists(path)) return JsonSerializer.Deserialize<EvidenceState>(security.Decrypt(await File.ReadAllBytesAsync(path, ct), "state"), Json) ?? throw new InvalidDataException("Evidence state unavailable.");
-        if (Convert.FromBase64String(config.EncryptionKey).Length != 32 || string.IsNullOrWhiteSpace(config.BootstrapEmail) || config.BootstrapTotpSecret.Length < 32)
-            throw new InvalidOperationException("Configure a 32-byte encryption key, bootstrap email/password and administrator TOTP secret before enabling the portal.");
+        if (Convert.FromBase64String(config.EncryptionKey).Length != 32 || string.IsNullOrWhiteSpace(config.BootstrapEmail) || (config.RequireAdminMfa && config.BootstrapTotpSecret.Length < 32))
+            throw new InvalidOperationException("Configure a 32-byte encryption key and bootstrap email/password before enabling the portal. A TOTP secret is also required when RequireAdminMfa is enabled.");
         if (config.FileLimitBytes <= 0 || config.FileLimitBytes > 20 * 1024 * 1024 || config.BatchLimitBytes <= 0 || config.BatchFileLimit is < 1 or > 50 || config.TenantQuotaBytes <= 0 || config.GlobalQuotaBytes <= 0)
             throw new InvalidOperationException("Evidence quota configuration is invalid.");
         Directory.CreateDirectory(Root);
@@ -97,10 +97,11 @@ public sealed partial class EvidenceStore(EvidenceSecurity security, EvidenceFil
         var u = s.Users.FirstOrDefault(u => string.Equals(u.Email, login.Email.Trim(), StringComparison.OrdinalIgnoreCase));
         var matches = EvidenceSecurity.PasswordMatches(login.Password, u?.PasswordHash ?? DummyPassword);
         if (u is null) return null;
-        var otp = Admin(u) ? EvidenceSecurity.TotpCounter(u.TotpSecret, login.Totp) : 0;
-        if (!u.Active || u.LockedUntil > DateTimeOffset.UtcNow || !matches || (Admin(u) && (otp < 0 || otp <= u.LastTotpCounter)))
+        var requireMfa = config.RequireAdminMfa && Admin(u);
+        var otp = requireMfa ? EvidenceSecurity.TotpCounter(u.TotpSecret, login.Totp) : 0;
+        if (!u.Active || u.LockedUntil > DateTimeOffset.UtcNow || !matches || (requireMfa && (otp < 0 || otp <= u.LastTotpCounter)))
         { u.FailedLogins++; if (u.FailedLogins >= 5) u.LockedUntil = DateTimeOffset.UtcNow.AddMinutes(15); Audit(s, u, "", "Sign-in failed", u.Id); return null; }
-        u.FailedLogins = 0; u.LockedUntil = null; if (Admin(u)) u.LastTotpCounter = otp;
+        u.FailedLogins = 0; u.LockedUntil = null; if (requireMfa) u.LastTotpCounter = otp;
         Audit(s, u, "", "Signed in", u.Id); return Clone(u);
     }, ct);
     public Task<object> SessionView(EvidenceUser actor, CancellationToken ct) => Transaction(s =>
@@ -137,11 +138,11 @@ public sealed partial class EvidenceStore(EvidenceSecurity security, EvidenceFil
         if (existing is not null)
         {
             if (!existing.Active || existing.Role != invite.Role || !EvidenceSecurity.PasswordMatches(input.Password, existing.PasswordHash)) return null;
-            if (Admin(existing)) { var current = EvidenceSecurity.TotpCounter(existing.TotpSecret, input.Totp); if (current < 0 || current <= existing.LastTotpCounter) return null; existing.LastTotpCounter = current; }
+            if (config.RequireAdminMfa && Admin(existing)) { var current = EvidenceSecurity.TotpCounter(existing.TotpSecret, input.Totp); if (current < 0 || current <= existing.LastTotpCounter) return null; existing.LastTotpCounter = current; }
             existing.Memberships.RemoveAll(m => m.TenantId == invite.TenantId); existing.Memberships.Add(new(invite.TenantId, invite.Scopes)); existing.SecurityVersion++;
             invite.Used = true; Audit(s, existing, invite.TenantId, "Additional organization invitation accepted", invite.Id); return Clone(existing);
         }
-        var otp = invite.Role == "IreiAdmin" ? EvidenceSecurity.TotpCounter(input.TotpSecret, input.Totp) : 0;
+        var otp = config.RequireAdminMfa && invite.Role == "IreiAdmin" ? EvidenceSecurity.TotpCounter(input.TotpSecret, input.Totp) : 0;
         if (otp < 0) throw new InvalidDataException("Administrator enrolment requires a valid authenticator secret and current code.");
         var u = new EvidenceUser { Email = invite.Email, Role = invite.Role, PasswordHash = EvidenceSecurity.Password(input.Password), TotpSecret = invite.Role == "IreiAdmin" ? input.TotpSecret : "", LastTotpCounter = otp, Memberships = [new(invite.TenantId, invite.Scopes)] };
         s.Users.Add(u); invite.Used = true; Audit(s, u, invite.TenantId, "Invitation accepted", invite.Id); return Clone(u);

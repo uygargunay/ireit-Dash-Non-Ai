@@ -65,5 +65,8 @@ jobs:
       - name: Phase 2 evidence roles, lineage and retention
         run: EVIDENCE_CONFIGURATION=Release python tests/smoke_evidence.py
 
+      - name: Optional administrator MFA enforcement
+        run: EVIDENCE_CONFIGURATION=Release EVIDENCE_TEST_REQUIRE_MFA=true python tests/smoke_evidence.py
+
       - name: Evidence production safety gates
         run: EVIDENCE_CONFIGURATION=Release python tests/smoke_evidence_production.py

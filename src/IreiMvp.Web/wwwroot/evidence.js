@@ -22,7 +22,7 @@
     if([...select.options].some(o=>o.value===previous))select.value=previous;
   }
   async function refreshSession() {
-    session=await api('/session');$('prototype').hidden=!session.prototype;$('access').hidden=session.authenticated;$('workspace').hidden=!session.authenticated;$('logout').hidden=!session.authenticated;
+    session=await api('/session');document.querySelectorAll('[data-admin-mfa]').forEach(e=>e.hidden=!session.requireAdminMfa);$('prototype').hidden=!session.prototype;$('access').hidden=session.authenticated;$('workspace').hidden=!session.authenticated;$('logout').hidden=!session.authenticated;
     if(!session.authenticated){$('identity').textContent='Secure evidence submission';return;}
     $('identity').textContent=`${session.profile.email} · ${session.profile.role}`;
     options($('organization'),session.profile.tenants.map(t=>({id:t.id,name:t.name})));
