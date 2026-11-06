@@ -5,3 +5,4 @@ src/IreiMvp.Web/App_Data/
 .idea/
 *.user
 *.suo
+**/__pycache__/
