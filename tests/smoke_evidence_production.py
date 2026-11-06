@@ -43,8 +43,8 @@ with tempfile.TemporaryDirectory(prefix='irei-evidence-prod-test-') as folder:
         scanner_port = probe.getsockname()[1]
     command = __import__('json').loads(os.environ.get('EVIDENCE_TEST_SERVER', __import__('json').dumps([t.DOTNET, str(t.ROOT / f"src/IreiMvp.Web/bin/{os.environ.get('EVIDENCE_CONFIGURATION','Debug')}/net8.0/IreiMvp.Web.dll")])))
     command += ['--contentRoot', str(t.ROOT / 'src/IreiMvp.Web'), '--urls', 'http://127.0.0.1:5095;https://127.0.0.1:5096']
-    env = dict(os.environ, ASPNETCORE_ENVIRONMENT='Production', Evidence__Enabled='true', Evidence__Prototype='false', Evidence__AllowLocalHttp='false', Evidence__InfrastructureSpendBlocked='true', Evidence__StoragePath=str(Path(folder,'data')),
-        Evidence__EncryptionKey=base64.b64encode(os.urandom(32)).decode(), Evidence__BootstrapEmail='admin@example.test', Evidence__BootstrapPassword=t.PASSWORD, Evidence__BootstrapTotpSecret=t.TOTP_SECRET,
+    env = dict(os.environ, ASPNETCORE_ENVIRONMENT='Production', Evidence__Enabled='true', Evidence__RequireAdminMfa='false', Evidence__Prototype='false', Evidence__AllowLocalHttp='false', Evidence__InfrastructureSpendBlocked='true', Evidence__StoragePath=str(Path(folder,'data')),
+        Evidence__EncryptionKey=base64.b64encode(os.urandom(32)).decode(), Evidence__BootstrapEmail='admin@example.test', Evidence__BootstrapPassword=t.PASSWORD, Evidence__BootstrapTotpSecret='',
         Evidence__ScannerPort=str(scanner_port), ASPNETCORE_Kestrel__Certificates__Default__Path=pfx, ASPNETCORE_Kestrel__Certificates__Default__Password='synthetic-cert-only')
     log = open(Path(folder,'server.log'),'w')
     server = subprocess.Popen(command,cwd=t.ROOT,env=env,stdout=log,stderr=log)
@@ -67,8 +67,8 @@ with tempfile.TemporaryDirectory(prefix='irei-evidence-prod-test-') as folder:
         t.check(True,'Production portal rejects plaintext HTTP')
         t.BASE='https://127.0.0.1:5096'
         client.session()
-        client.call('/api/evidence/login',{'email':'admin@example.test','password':t.PASSWORD,'totp':t.totp()})
-        client.session()
+        client.call('/api/evidence/login',{'email':'admin@example.test','password':t.PASSWORD,'totp':''})
+        t.check(not client.session()['requireAdminMfa'],'Fresh production bootstrap signs in without an authenticator secret')
         t.check(all(cookie.secure for cookie in client.jar),'Production session and confirmation cookies require TLS')
         tenant=t.new_tenant(client,'Synthetic production-gate test')
         payload={'tenantId':tenant['id'],'scopeId':'organization','categoryIds':['02'],'coverage':'Partial','confirmedNoPersonalData':True,'files':[{'name':'synthetic.csv','size':4}]}

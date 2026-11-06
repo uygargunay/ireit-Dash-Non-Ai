@@ -3,6 +3,7 @@ namespace IreiMvp.Web;
 public sealed class EvidenceOptions
 {
     public bool Enabled { get; set; }
+    public bool RequireAdminMfa { get; set; }
     public bool Prototype { get; set; } = true;
     public bool AllowLocalHttp { get; set; }
     public bool InfrastructureSpendBlocked { get; set; }
@@ -263,9 +264,9 @@ public sealed class EvidenceTransfer
     public string? DocumentId { get; set; }
 }
 public sealed record EvidenceSession(string UserId, int SecurityVersion, DateTimeOffset Expires, string Csrf);
-public sealed record EvidenceLogin(string Email, string Password, string Totp);
+public sealed record EvidenceLogin(string Email, string Password, string Totp = "");
 public sealed record EvidenceInviteRequest(string TenantId, string Email, string Role, string[] Scopes);
-public sealed record EvidenceAcceptInvite(string Token, string Password, string TotpSecret, string Totp);
+public sealed record EvidenceAcceptInvite(string Token, string Password, string TotpSecret = "", string Totp = "");
 public sealed record EvidenceMetadata(string[] CategoryIds, string[] PropertyIds, string ReportingPeriod, string Coverage, string Notes);
 public sealed record EvidenceStatusRequest(string State, string Note);
 public sealed record EvidenceFactReview(string Status, string Reason);

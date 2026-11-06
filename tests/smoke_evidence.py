@@ -130,10 +130,11 @@ def policy(admin, tenant):
 
 
 def main():
+    require_mfa = os.environ.get("EVIDENCE_TEST_REQUIRE_MFA", "false").lower() == "true"
     with tempfile.TemporaryDirectory(prefix="irei-evidence-test-") as folder:
         log = open(Path(folder) / "server.log", "w")
-        cmd = json.loads(os.environ.get('EVIDENCE_TEST_SERVER', json.dumps([DOTNET, str(ROOT / f"src/IreiMvp.Web/bin/{os.environ.get('EVIDENCE_CONFIGURATION','Debug')}/net8.0/IreiMvp.Web.dll")]))) + ["--contentRoot", str(ROOT / "src/IreiMvp.Web"), "--urls", BASE]
-        env = dict(os.environ, ASPNETCORE_ENVIRONMENT="Development", Evidence__Enabled="true", Evidence__Prototype="true", Evidence__AllowLocalHttp="true", Evidence__EncryptionKey=base64.b64encode(os.urandom(32)).decode(),
+        cmd = json.loads(os.environ.get('EVIDENCE_TEST_SERVER', json.dumps([DOTNET, str(ROOT / f"src/IreiMvp.Web/bin/{os.environ.get('EVIDENCE_CONFIGURATION','Debug')}/net8.0/IreiMvp.Web.dll")]))) + ["--contentRoot", str(ROOT / "src/IreiMvp.Web"), "--urls", BASE.replace("127.0.0.1", "localhost")]
+        env = dict(os.environ, ASPNETCORE_ENVIRONMENT="Development", Evidence__Enabled="true", Evidence__RequireAdminMfa=str(require_mfa).lower(), Evidence__Prototype="true", Evidence__AllowLocalHttp="true", Evidence__EncryptionKey=base64.b64encode(os.urandom(32)).decode(),
             Evidence__BootstrapEmail="admin@example.test", Evidence__BootstrapPassword=PASSWORD, Evidence__BootstrapTotpSecret=TOTP_SECRET, Evidence__StoragePath=folder,
             Evidence__FileLimitBytes="1048576", Evidence__BatchLimitBytes="4194304", Evidence__TenantQuotaBytes="6291456", Evidence__GlobalQuotaBytes="16777216")
         server = subprocess.Popen(cmd, cwd=ROOT, env=env, stdout=log, stderr=log)
@@ -149,12 +150,23 @@ def main():
                     time.sleep(.1)
             else:
                 raise RuntimeError("Portal did not start")
-            admin.call("/api/evidence/login", {"email": "admin@example.test", "password": PASSWORD, "totp": ""}, status=401)
-            check(True, "Administrator password alone does not bypass MFA")
-            admin.call("/api/evidence/login", {"email": "admin@example.test", "password": PASSWORD, "totp": totp()})
+            check(admin.session()["requireAdminMfa"] == require_mfa, "Session advertises the configured administrator MFA requirement")
+            admin.call("/api/evidence/login", {"email": "admin@example.test", "password": "incorrect-password", "totp": ""}, status=401)
+            check(True, "Disabling authenticator does not bypass the password requirement")
+            if require_mfa:
+                admin.call("/api/evidence/login", {"email": "admin@example.test", "password": PASSWORD, "totp": ""}, status=401)
+                check(True, "Optional administrator MFA still rejects a missing code")
+            admin.call("/api/evidence/login", {"email": "admin@example.test", "password": PASSWORD, "totp": totp() if require_mfa else ""})
+            check(True, "Administrator with a stored authenticator secret signs in under the configured policy")
             admin.session()
             a = new_tenant(admin, "Pilot A")
             b = new_tenant(admin, "Pilot B")
+            if not require_mfa:
+                invited_admin, _ = invite(admin, a, "second-admin@example.test", role="IreiAdmin", scopes=["*"])
+                check(invited_admin.session()["profile"]["role"] == "IreiAdmin", "New administrator invitation activates without authenticator enrollment")
+                more_access = admin.call("/api/evidence/invitations", {"tenantId": b["id"], "email": "second-admin@example.test", "role": "IreiAdmin", "scopes": ["*"]})
+                invited_admin.call("/api/evidence/accept-invitation", {"token": more_access["token"], "password": PASSWORD, "totpSecret": "", "totp": ""})
+                check(len(invited_admin.session()["profile"]["tenants"]) == 2, "Existing administrator can accept additional organization access without an authenticator")
             ca, invitation = invite(admin, a, "a@example.test")
             cb, _ = invite(admin, b, "b@example.test")
             department, _ = invite(admin, a, "department@example.test", scopes=["department-b"])
@@ -299,7 +311,7 @@ def main():
             admin.call(f"/api/evidence/tenants/{a['id']}/users/{user_id}", method="DELETE")
             check(not ca.session()["authenticated"], "Revocation invalidates an already issued client session")
             if os.environ.get('EVIDENCE_BROWSER_TEST'):
-                browser_env=dict(os.environ,EVIDENCE_TEST_URL=BASE,EVIDENCE_TEST_PASSWORD=PASSWORD,EVIDENCE_TEST_TOTP=totp(),EVIDENCE_TEST_TOTP_SECRET=TOTP_SECRET)
+                browser_env=dict(os.environ,EVIDENCE_TEST_URL=BASE.replace("127.0.0.1", "localhost"),EVIDENCE_TEST_PASSWORD=PASSWORD,EVIDENCE_TEST_TOTP=totp(),EVIDENCE_TEST_TOTP_SECRET=TOTP_SECRET,EVIDENCE_TEST_REQUIRE_MFA=str(require_mfa).lower())
                 subprocess.run([os.environ.get('NODE_EXE','node'),'tests/browser_evidence.cjs'],cwd=ROOT,env=browser_env,check=True)
             print(f"EVIDENCE PORTAL: {passed} synthetic integration checks passed.", flush=True)
         finally:
