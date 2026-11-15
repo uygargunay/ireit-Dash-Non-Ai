@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace IreiMvp.Web;
 
-public sealed class IntakeExtractor(XlsxWorkbookService xlsx)
+public sealed partial class IntakeExtractor(XlsxWorkbookService xlsx)
 {
     public WorkbookSnapshot ReadBytes(byte[] bytes, string name)
     {
@@ -34,6 +34,7 @@ public sealed class IntakeExtractor(XlsxWorkbookService xlsx)
         {
             if (s.MaxRow > 100000 || s.MaxColumn > 1000 || s.Cells.Count > 200000)
                 throw new InvalidDataException("Sheet exceeds demonstration row/column/cell limits; split or convert the source for review.");
+            ExtractMortgageLayouts(s, source, candidates);
             var present = s.Cells.Values.Where(c => c.Value is not null || c.Formula is not null).ToArray();
             source.Sheets.Add(new(s.Name, s.MaxRow, s.MaxColumn, present.Length, present.Count(c => c.Formula is not null),
                 present.Count(c => c.Formula is not null && c.Value is null), present.Length == 0 ? "Empty" : "Inventoried"));
@@ -69,13 +70,17 @@ public sealed class IntakeExtractor(XlsxWorkbookService xlsx)
     public static string Suggest(string label)
     {
         var s = Regex.Replace(label.Trim().ToUpperInvariant(), @"\s+", " ");
-        if (s == "TOTAL REVENUE") return "REVENUE";
+        if (s == "PROPERTY NAME") return "PROPERTY_NAME";
+        if (s is "NET OPERATING INCOME" or "NET OPERATING SURPLUS") return "NOI";
+        if (s is "CASH AND CASH EQUIVALENTS" or "CASH BALANCE") return "CASH_BALANCE";
+        if (s is "REPLACEMENT RESERVE" or "CLOSING RESERVE") return "RESERVE_CLOSING";
+        if (s is "TOTAL REVENUE" or "TOTAL REVENUES" or "TOTAL INCOME") return "REVENUE";
         if (s == "TOTAL SOCIETY OPERATING EXPENSES") return "OPEX_SOCIETY";
         if (s.StartsWith("TOTAL BUILDING OPERATING EXPENSES")) return "OPEX_BUILDINGS";
         if (s is "TOTAL OPERATING EXPENSE" or "TOTAL OPERATING EXPENSES") return "OPEX";
         if (s.Contains("MORTGAGE") && s.Contains("PRINCIPAL") && s.Contains("PAYMENT")) return "DEBT_PRINCIPAL";
         if (s.Contains("MORTGAGE") && s.Contains("INTEREST") && s.Contains("PAYMENT")) return "DEBT_INTEREST";
-        if (s == "MORTGAGE PAYMENTS") return "DEBT_SERVICE";
+        if (s is "MORTGAGE PAYMENTS" or "ANNUAL MORTGAGE PAYMENT" or "ANNUAL DEBT SERVICE") return "DEBT_SERVICE";
         if (s is "UNITS" or "TOTAL UNITS") return "HOMES_TOTAL";
         if (s.Contains("NET RESERVE FUNDS")) return "RESERVE_CLOSING";
         if (s == "SUBSIDY" || s.StartsWith("BC HOUSING SUBSIDY REVENUE")) return "REV_SUBSIDY";

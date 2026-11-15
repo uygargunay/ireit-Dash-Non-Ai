@@ -6,7 +6,7 @@ using System.Text.Json;
 namespace IreiMvp.Web;
 public sealed partial class EvidenceStore
 {
-    private static string FactKey(EvidenceFact f) => string.Join("|", f.TenantId, f.PropertyId, f.MetricCode, f.Unit, f.Currency, f.Period, f.AsOfDate, f.Basis);
+    private static string FactKey(EvidenceFact f) => string.Join("|", f.TenantId, f.PropertyId.Length > 0 ? f.PropertyId : f.SuggestedProperty, f.MetricCode, f.Unit, f.Currency, f.Period, f.AsOfDate, f.Basis);
     private static EvidenceDocument FactDocument(EvidenceState s, EvidenceUser u, EvidenceFact f) => Document(s, u, Version(s, u, f.DocumentVersionId).DocumentId);
     private static void ValidateFact(EvidenceState s, EvidenceUser u, string tenant, EvidenceFact f)
     {
@@ -20,6 +20,7 @@ public sealed partial class EvidenceStore
             throw new InvalidDataException("Supply the expected text or numeric value. Missing evidence is not zero.");
         if (f.Certainty == "Unavailable" && f.Value is not null) throw new InvalidDataException("Unavailable evidence must not be entered as a numeric zero or estimate.");
         if (metric.Unit == "Currency" && (f.Unit != "Currency" || !new[] { "CAD", "USD", "Other" }.Contains(f.Currency))) throw new InvalidDataException("Confirm currency and Currency unit for monetary facts.");
+        if (metric.Unit == "Percent" && (f.Unit != "Percent" || f.Value < 0 || f.Value > 1)) throw new InvalidDataException("Confirm a rate expressed as a fraction between zero and one.");
         if (metric.Unit == "Count" && (f.Unit != "Count" || f.Value < 0 || (f.Value.HasValue && decimal.Truncate(f.Value.Value) != f.Value.Value))) throw new InvalidDataException("Counts must be nonnegative whole numbers.");
         if (f.Certainty is not ("Verified source" or "Estimated" or "Client-reported" or "Unavailable")) throw new InvalidDataException("Choose an evidence certainty state.");
         if (f.AsOfDate.Length > 0 && !DateOnly.TryParseExact(f.AsOfDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _)) throw new InvalidDataException("Use an ISO as-of date.");
@@ -30,7 +31,7 @@ public sealed partial class EvidenceStore
         if (s.Facts.Count(f => f.TenantId == tenant) >= 100000) throw new InvalidDataException("Fact capacity reached; arrange a reviewed capacity extension.");
         var f = new EvidenceFact { TenantId = tenant, DocumentVersionId = input.DocumentVersionId, PropertyId = input.PropertyId, MetricCode = input.MetricCode,
             Value = input.Value, TextValue = input.TextValue, Unit = input.Unit, Currency = input.Currency, Period = input.Period, AsOfDate = input.AsOfDate, Basis = input.Basis,
-            Locator = input.Locator, Method = "Manual", Certainty = input.Certainty, Operator = u.Id, Reason = input.Reason, SupersedesId = input.SupersedesId,
+            SuggestedProperty = input.SuggestedProperty, SourceLabel = input.SourceLabel, Locator = input.Locator, Method = "Manual", Certainty = input.Certainty, Operator = u.Id, Reason = input.Reason, SupersedesId = input.SupersedesId,
             OriginalValue = input.Value?.ToString(CultureInfo.InvariantCulture) ?? input.TextValue };
         if (f.SupersedesId is not null)
         { var prior = s.Facts.SingleOrDefault(x => x.Id == f.SupersedesId && x.TenantId == tenant) ?? throw new EvidenceDeniedException(); FactDocument(s, u, prior); f.OriginalValue = prior.OriginalValue; }
@@ -43,13 +44,16 @@ public sealed partial class EvidenceStore
         if (conflicts.Length > 0) s.Issues.Add(new() { TenantId = fact.TenantId, VersionId = fact.DocumentVersionId, FactId = fact.Id, Kind = "Contradictory figures", Owner = u.Id,
             Question = "Conflicting sources report different values for the same metric, scope, period, unit, currency and reporting basis. Review both source versions before selecting a value." });
     }
-    public Task<EvidenceFact> ReviewFact(EvidenceUser actor, string fact, EvidenceFactReview input, CancellationToken ct) => Transaction(s =>
+    public Task<EvidenceFact> ReviewFact(EvidenceUser actor, string fact, EvidenceFactReview input, CancellationToken ct) =>
+        Transaction(s => ReviewFactCore(s, Actor(s, actor), fact, input), ct);
+    private EvidenceFact ReviewFactCore(EvidenceState s, EvidenceUser u, string fact, EvidenceFactReview input)
     {
-        var u = Actor(s, actor); NeedStaff(u); var f = s.Facts.SingleOrDefault(f => f.Id == fact) ?? throw new EvidenceDeniedException(); var d = FactDocument(s, u, f);
+        NeedStaff(u); var f = s.Facts.SingleOrDefault(f => f.Id == fact) ?? throw new EvidenceDeniedException(); var d = FactDocument(s, u, f);
         if (f.Status is "Verified" or "Superseded" or "Rejected") throw new InvalidDataException("Reviewed values are immutable. Propose a correction instead.");
         if (input.Status is not ("Verified" or "Qualified" or "Needs clarification" or "Rejected") || string.IsNullOrWhiteSpace(input.Reason)) throw new InvalidDataException("Review status and rationale required.");
         if (input.Status == "Verified")
         {
+            if (f.SuggestedProperty.Length > 0 || f.Period == "Unconfirmed" || f.Basis == "Unconfirmed") throw new InvalidDataException("Confirm proposed property/organization scope, reporting period and basis before verification. Use Confirm selected context for a group.");
             ValidateFact(s, u, d.TenantId, f);
             if (f.Certainty == "Unavailable") throw new InvalidDataException("Unavailable values cannot become verified numeric facts.");
             if (Version(s, u, f.DocumentVersionId).Processing != "Accepted") throw new InvalidDataException("Source must clear file screening before factual verification.");
@@ -59,11 +63,12 @@ public sealed partial class EvidenceStore
             { var prior = s.Facts.Single(x => x.Id == f.SupersedesId); FactDocument(s, u, prior); prior.Status = "Superseded"; Audit(s, u, d.TenantId, "Fact superseded", prior.Id, f.Id); }
         }
         f.Status = input.Status; f.Reviewer = u.Id; Audit(s, u, d.TenantId, "Fact reviewed", f.Id, input.Status + ": " + input.Reason); return Clone(f);
-    }, ct);
+    }
     public Task<object> ImportSpreadsheet(EvidenceUser actor, string versionId, IntakeExtractor extractor, CancellationToken ct) => Transaction(s =>
     {
         var u = Actor(s, actor); NeedStaff(u); var version = Version(s, u, versionId); var doc = Document(s, u, version.DocumentId);
-        if (version.Processing != "Accepted" || version.DeletedAt is not null || version.Extension is not (".xlsx" or ".csv")) throw new InvalidDataException("Choose an accepted XLSX/CSV source. PDFs and other documents can be manually indexed.");
+        if (version.Processing != "Accepted" || version.DeletedAt is not null || version.Extension is not (".xlsx" or ".csv" or ".pdf")) throw new InvalidDataException("Choose an accepted XLSX, CSV or text PDF source.");
+        if (version.Extension == ".pdf") return ImportPdf(s, u, doc, version);
         var bytes = ReadBlob(doc, version); var snapshot = extractor.ReadBytes(bytes, version.Name); var inserted = 0; var skipped = 0;
         var unitDefault = "Currency";
         // Canonical long-format CSV/table import; the source file itself supplies all values.
@@ -94,16 +99,23 @@ public sealed partial class EvidenceStore
         if (inserted == 0 && skipped == 0)
         {
             var source = new IntakeSource { Id = version.Id }; var candidates = new List<IntakeCandidate>(); extractor.Extract(snapshot, source, candidates);
-            foreach (var candidate in candidates.Where(c => c.SuggestedCode.Length > 0 && WorkbookValue.Decimal(c.RawText).HasValue && EvidenceMetrics.All.Any(m => m.Code == c.SuggestedCode)))
+            foreach (var candidate in candidates.Where(c => c.SuggestedCode.Length > 0 && (WorkbookValue.Decimal(c.RawText).HasValue || EvidenceMetrics.All.Any(m => m.Code == c.SuggestedCode && m.Unit == "Text")) && EvidenceMetrics.All.Any(m => m.Code == c.SuggestedCode)))
             {
                 var locator = candidate.Sheet + "!" + candidate.Cell;
-                if (s.Facts.Any(f => f.DocumentVersionId == version.Id && f.Locator == locator)) { skipped++; continue; }
-                var f = new EvidenceFact { TenantId = doc.TenantId, DocumentVersionId = version.Id, MetricCode = candidate.SuggestedCode, Value = WorkbookValue.Decimal(candidate.RawText),
-                    Unit = "Unconfirmed", Period = candidate.RawYear, Basis = "Unconfirmed", Locator = locator, Method = "Spreadsheet proposal", Certainty = "Client-reported", Operator = u.Id,
+                var existing = s.Facts.FirstOrDefault(f => f.DocumentVersionId == version.Id && f.Locator == locator);
+                if (existing is not null)
+                { if (existing.Status == "Unreviewed" && existing.Method == "Spreadsheet proposal") { existing.SuggestedProperty = candidate.SuggestedProperty; existing.SourceLabel = candidate.Label; } skipped++; continue; }
+                var isText = EvidenceMetrics.All.Single(m => m.Code == candidate.SuggestedCode).Unit == "Text";
+                var f = new EvidenceFact { TenantId = doc.TenantId, DocumentVersionId = version.Id, MetricCode = candidate.SuggestedCode, Value = isText ? null : WorkbookValue.Decimal(candidate.RawText), TextValue = isText ? candidate.RawText : "",
+                    SuggestedProperty = candidate.SuggestedProperty, SourceLabel = candidate.Label, Unit = "Unconfirmed", Period = candidate.RawYear, Basis = "Unconfirmed", Locator = locator, Method = "Spreadsheet proposal", Certainty = "Client-reported", Operator = u.Id,
                     OriginalValue = candidate.RawText, Reason = "Layout-based proposal; confirm property, unit, reporting basis and source cache before correction/verification." };
                 s.Facts.Add(f); AddContradictions(s, u, f); inserted++;
             }
         }
+        if (s.Facts.Count(f => f.TenantId == doc.TenantId) > 100000) throw new InvalidDataException("Fact capacity reached. Split and review the sources.");
+        var formulaErrors = snapshot.Sheets.Values.Sum(sh => sh.Cells.Values.Count(c => WorkbookValue.Text(c.Value).StartsWith('#')));
+        version.Extraction = new() { State = inserted + skipped > 0 ? "Extracted" : "No supported fields", Proposed = inserted + skipped, Sections = snapshot.Sheets.Keys.ToArray(),
+            Warnings = new[] { "Candidates are not verified. Confirm reporting basis, currency, scale and property matching.", formulaErrors > 0 ? $"{formulaErrors} source cells contain formula errors; these were not converted to values." : "" }.Where(x => x.Length > 0).ToArray() };
         Audit(s, u, doc.TenantId, "Spreadsheet candidates imported", version.Id, inserted.ToString(CultureInfo.InvariantCulture));
         return (object)new { Inserted = inserted, Skipped = skipped, State = "Unreviewed", Unit = unitDefault, Sheets = snapshot.Sheets.Keys.ToArray() };
     }, ct);
@@ -193,6 +205,7 @@ public sealed partial class EvidenceStore
         { FactDocument(s, u, f); var v = Version(s, u, f.DocumentVersionId);
             if (v.Processing != "Accepted" || s.Issues.Any(i => i.TenantId == tenant && i.Status == "Open" && i.Severity == "Material" && (i.FactId == f.Id || i.VersionId == v.Id))) continue;
             rows.Add(string.Join(',', new object?[] { f.Id, tenant, f.PropertyId, f.MetricCode, f.Value, f.TextValue, f.Unit, f.Currency, f.Period, f.AsOfDate, f.Basis, f.DocumentVersionId, f.Locator, f.Method, f.Status, v.Retention }.Select(CsvCell))); }
+        if (rows.Count == 1) throw new InvalidDataException("No verified facts are eligible for export. Use the draft preview export to inspect unreviewed data, or verify supported facts first.");
         Audit(s, u, tenant, "Validated facts exported internally", tenant); return Encoding.UTF8.GetBytes(string.Join("\r\n", rows));
     }, ct);
     public Task<object> AuditLog(EvidenceUser actor, string tenant, CancellationToken ct) => Transaction(s =>

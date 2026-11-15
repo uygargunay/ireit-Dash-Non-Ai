@@ -80,7 +80,13 @@ public static class EvidenceEndpoints
         g.MapGet("/metrics", () => Results.Ok(EvidenceMetrics.All));
         g.MapPost("/tenants/{tenant}/facts", async (string tenant, EvidenceFact input, HttpContext c, EvidenceStore store, CancellationToken ct) => Results.Ok(await store.AddFact(User(c), tenant, input, ct)));
         g.MapPost("/facts/{fact}/review", async (string fact, EvidenceFactReview input, HttpContext c, EvidenceStore store, CancellationToken ct) => Results.Ok(await store.ReviewFact(User(c), fact, input, ct)));
-        g.MapPost("/versions/{version}/import", async (string version, HttpContext c, EvidenceStore store, IntakeExtractor extractor, CancellationToken ct) => Results.Ok(await store.ImportSpreadsheet(User(c), version, extractor, ct)));
+        g.MapPost("/versions/{version}/import", async (string version, HttpContext c, EvidenceStore store, IntakeExtractor extractor, CancellationToken ct) =>
+        { try { return Results.Ok(await store.ImportSpreadsheet(User(c), version, extractor, ct)); }
+          catch (InvalidDataException e) { await store.ExtractionFailed(User(c), version, e.Message, ct); return Results.BadRequest(new { error = e.Message }); } });
+        g.MapGet("/versions/{version}/text", async (string version, HttpContext c, EvidenceStore store, CancellationToken ct) => Results.Ok(await store.PdfText(User(c), version, ct)));
+        g.MapPost("/tenants/{tenant}/facts/review-selected", async (string tenant, EvidenceBatchReview input, HttpContext c, EvidenceStore store, CancellationToken ct) => Results.Ok(await store.BatchReview(User(c), tenant, input, ct)));
+        g.MapPost("/tenants/{tenant}/facts/context-selected", async (string tenant, EvidenceBatchContext input, HttpContext c, EvidenceStore store, CancellationToken ct) => Results.Ok(await store.BatchContext(User(c), tenant, input, ct)));
+        g.MapGet("/tenants/{tenant}/draft.csv", async (string tenant, HttpContext c, EvidenceStore store, CancellationToken ct) => Results.File(await store.ExportDraft(User(c), tenant, ct), "text/csv", "draft-unreviewed-stage1-data.csv"));
         g.MapPost("/tenants/{tenant}/issues", async (string tenant, EvidenceIssue input, HttpContext c, EvidenceStore store, CancellationToken ct) => Results.Ok(await store.AddIssue(User(c), tenant, input, ct)));
         g.MapPost("/issues/{issue}/response", async (string issue, EvidenceIssueResponse input, HttpContext c, EvidenceStore store, CancellationToken ct) => Results.Ok(await store.RespondIssue(User(c), issue, input.Response, input.Resolve, ct, input.Availability)));
         g.MapPost("/tenants/{tenant}/snapshots", async (string tenant, EvidenceSnapshot input, HttpContext c, EvidenceStore store, CancellationToken ct) => Results.Ok(await store.Freeze(User(c), tenant, input, ct)));

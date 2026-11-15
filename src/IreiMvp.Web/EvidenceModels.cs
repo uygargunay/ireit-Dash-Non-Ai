@@ -150,6 +150,7 @@ public sealed class EvidenceVersion
     public string Validation { get; set; } = "Unreviewed";
     public string Retention { get; set; } = "Temporary copy";
     public string Message { get; set; } = "";
+    public EvidenceExtraction? Extraction { get; set; }
     public DateTimeOffset? RetentionDue { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
 }
@@ -176,6 +177,8 @@ public sealed class EvidenceFact
     public string DocumentVersionId { get; set; } = "";
     public string PropertyId { get; set; } = "";
     public string MetricCode { get; set; } = "";
+    public string SuggestedProperty { get; set; } = "";
+    public string SourceLabel { get; set; } = "";
     public decimal? Value { get; set; }
     public string TextValue { get; set; } = "";
     public string Unit { get; set; } = "";
@@ -260,6 +263,7 @@ public sealed class EvidenceTransfer
     public long Size { get; set; }
     public string State { get; set; } = "Queued";
     public string Message { get; set; } = "";
+    public EvidenceExtraction? Extraction { get; set; }
     public string? VersionId { get; set; }
     public string? DocumentId { get; set; }
 }
@@ -276,7 +280,21 @@ public sealed record EvidenceMetric(string Code, string Label, string Unit);
 public static class EvidenceMetrics
 {
     public static readonly EvidenceMetric[] All = [new("REVENUE", "Operating revenue", "Currency"), new("OPEX", "Operating expenses", "Currency"),
+        new("OPEX_SOCIETY", "Organization operating expenses", "Currency"), new("OPEX_BUILDINGS", "Building operating expenses", "Currency"),
+        new("DEBT_BALANCE", "Mortgage balance", "Currency"), new("MORTGAGE_MATURITY", "Mortgage expiry date", "Text"), new("MORTGAGE_RATE", "Mortgage interest rate (fraction)", "Percent"),
+        new("DEBT_PRINCIPAL", "Principal payments", "Currency"), new("DEBT_INTEREST", "Interest payments", "Currency"),
+        new("REV_SUBSIDY", "Subsidy revenue", "Currency"), new("REV_RENT_EXISTING", "Existing rental revenue", "Currency"), new("REV_RENT_NEW", "New rental revenue", "Currency"), new("REV_OTHER", "Other income", "Currency"),
         new("NOI", "Net operating income", "Currency"), new("DEBT_SERVICE", "Annual debt service", "Currency"), new("CASH_BALANCE", "Cash balance", "Currency"),
         new("RESTRICTED_CASH", "Restricted cash", "Currency"), new("RESERVE_CLOSING", "Closing reserve", "Currency"), new("HOMES_TOTAL", "Homes or beds", "Count"),
         new("CAPITAL_NEEDS", "Capital needs", "Currency"), new("PROPERTY_NAME", "Property name", "Text"), new("AFFORDABILITY", "Affordability obligation", "Text")];
 }
+
+public sealed class EvidenceExtraction
+{
+    public DateTimeOffset Date { get; set; } = DateTimeOffset.UtcNow;
+    public string State { get; set; } = "";
+    public string[] Sections { get; set; } = [];
+    public string[] Warnings { get; set; } = [];
+    public int Proposed { get; set; }
+}
+public sealed record EvidenceBatchReview(string[] FactIds, string Status, string Reason, bool Confirmed);

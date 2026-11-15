@@ -110,6 +110,18 @@ def xlsx():
     return mem.getvalue()
 
 
+def sparse_xlsx(cells):
+    grouped={}
+    for address,value in cells.items():
+        row=int(''.join(c for c in address if c.isdigit()))
+        cell=f'<c r="{address}" t="inlineStr"><is><t>{escape(value)}</t></is></c>' if isinstance(value,str) else f'<c r="{address}"><v>{value}</v></c>'
+        grouped.setdefault(row,[]).append(cell)
+    xml='<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'+''.join(f'<row r="{r}">'+''.join(c)+'</row>' for r,c in sorted(grouped.items()))+'</sheetData></worksheet>'
+    mem=io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(xlsx())) as source,zipfile.ZipFile(mem,'w') as target:
+        for name in source.namelist():target.writestr(name,xml if name=='xl/worksheets/sheet1.xml' else source.read(name))
+    return mem.getvalue()
+
 def docx():
     mem = io.BytesIO()
     with zipfile.ZipFile(mem, "w") as z:
@@ -127,6 +139,27 @@ def policy(admin, tenant):
     return admin.call(f"/api/evidence/tenants/{tenant['id']}/policy", {"agreementReference": "SYNTHETIC-ONLY-AGREEMENT", "hostingLocation": "Local synthetic test environment",
         "processorsAndBackups": "No client records; local test files; ephemeral test backup protocol", "clientSourceLocation": "Synthetic fixture generator and exact-version test archive", "sourceRetentionDays": 30, "derivedRetentionDays": 730,
         "writtenAuthority": True, "securityApproved": True, "backupReviewed": True, "clientPreservesExactVersions": True}, method="PUT")
+
+
+def text_pdf(blank=False):
+    # Valid two-page synthetic PDF; no reportlab dependency is needed in CI.
+    streams=[]
+    for year in [2026,2025]:
+        texts=[] if blank else [(330,750,str(year)),(50,710,'Total revenue'),(330,710,'1,200.00'),(50,680,'Total operating expenses'),(330,680,'(400.00)')]
+        content='\n'.join(f'BT /F1 12 Tf {x} {y} Td ({v}) Tj ET' for x,y,v in texts).encode()
+        content=content.replace(b'((400.00))',b'(\\(400.00\\))')
+        streams.append(content)
+    objects=[b'<< /Type /Catalog /Pages 2 0 R >>',b'<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>']
+    for index,content in enumerate(streams):
+        objects.append(f'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents {4+index*2} 0 R >>'.encode())
+        objects.append(b'<< /Length '+str(len(content)).encode()+b' >>\nstream\n'+content+b'\nendstream')
+    objects.append(b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>')
+    result=b'%PDF-1.4\n';offsets=[0]
+    for i,obj in enumerate(objects,1):
+        offsets.append(len(result));result+=f'{i} 0 obj\n'.encode()+obj+b'\nendobj\n'
+    start=len(result);result+=f'xref\n0 {len(offsets)}\n0000000000 65535 f \n'.encode()
+    result+=b''.join(f'{n:010d} 00000 n \n'.encode() for n in offsets[1:])
+    return result+f'trailer\n<< /Size {len(offsets)} /Root 1 0 R >>\nstartxref\n{start}\n%%EOF'.encode()
 
 
 def main():
@@ -305,13 +338,62 @@ def main():
             ca.call(f"/api/evidence/versions/{reference['version']['id']}/unavailable", {"state":"Unavailable","note":"Client revoked sharing"})
             check(next(v for v in workspace(ca,a)["versions"] if v["id"] == reference["version"]["id"])["processing"] == "Access revoked", "Withdrawn client-hosted access is explicit without erasing history")
             check(all(b"SYNTHETIC PRIVATE TEST" not in p.read_bytes() and b"INTERNAL PRIVATE ASSUMPTIONS" not in p.read_bytes() for p in Path(folder).rglob('*.enc')), "Originals, metadata and snapshots are encrypted at rest")
+            admin.call(f"/api/evidence/tenants/{b['id']}/facts.csv",status=400)
+            check(True,'Verified export explains empty output instead of silently downloading only headers')
+            mortgage=upload(ca,a,'synthetic-mortgage.xlsx',sparse_xlsx({'C1':'Mortgage Company','I1':'Annual','I2':'Mortgage','I3':'Payment','J2':'Jul 31/26','E1':'Rate','H1':'Expire On','B6':'Synthetic Building','C6':'Synthetic Lender','E6':0.04,'H6':'2028-05-01','I6':12000,'J6':90000}))
+            admin.call(f"/api/evidence/versions/{mortgage['versionId']}/import",{})
+            mf=[f for f in workspace(admin,a)['facts'] if f['documentVersionId']==mortgage['versionId']]
+            check({f['metricCode'] for f in mf}=={'DEBT_SERVICE','DEBT_BALANCE','MORTGAGE_RATE','MORTGAGE_MATURITY'} and all(f['suggestedProperty']=='Synthetic Building' for f in mf),'Multi-line mortgage register detects payment, balance, rate and expiry without losing property scope')
+            matrix=upload(ca,a,'synthetic-payment-matrix.xlsx',sparse_xlsx({'B1':'All Buildings','E1':'Synthetic Building','B3':'Principal','C3':'Interest','D3':'Total Mortgage Payments','E3':'Loan Amount','F3':'Principal','G3':'Interest','A6':'Jul 31/26','B6':100,'C6':50,'D6':150,'E6':1000,'F6':100,'G6':50,'H6':150}))
+            admin.call(f"/api/evidence/versions/{matrix['versionId']}/import",{})
+            mx=[f for f in workspace(admin,a)['facts'] if f['documentVersionId']==matrix['versionId']]
+            check(len(mx)==7 and {f['suggestedProperty'] for f in mx}=={'All Buildings','Synthetic Building'},'Payment matrix separates portfolio totals and building components with row-date provenance')
+            inventory=upload(ca,a,'synthetic-inventory.xlsx',sparse_xlsx({'B4':'Property Name','R4':'Total Units','B5':'Synthetic House','R5':12}),category='03')
+            admin.call(f"/api/evidence/versions/{inventory['versionId']}/import",{})
+            inv=[f for f in workspace(admin,a)['facts'] if f['documentVersionId']==inventory['versionId']]
+            check(any(f['metricCode']=='PROPERTY_NAME' and f['textValue']=='Synthetic House' for f in inv) and any(f['metricCode']=='HOMES_TOTAL' and f['value']==12 for f in inv),'Property inventory proposes names and units without automatically creating verified assets')
+            pdf=upload(ca,a,'synthetic-statements.pdf',text_pdf())
+            extracted=admin.call(f"/api/evidence/versions/{pdf['versionId']}/import",{})
+            pf=[f for f in workspace(admin,a)['facts'] if f['documentVersionId']==pdf['versionId']]
+            check(extracted['inserted']==4 and {f['period'] for f in pf}=={'2026','2025'}, 'Text PDF extracts financial facts from every page with separate year context')
+            check(all(f['locator'].startswith('page ') and f['status']=='Unreviewed' and f['unit']=='Unconfirmed' for f in pf), 'PDF proposals preserve page locations and never auto-verify context')
+            check(next(f['value'] for f in pf if f['metricCode']=='OPEX')==-400, 'PDF parentheses retain their negative sign without silent normalization')
+            repeat=admin.call(f"/api/evidence/versions/{pdf['versionId']}/import",{})
+            check(repeat['inserted']==0 and repeat['skipped']==4,'PDF re-extraction is idempotent')
+            pages=admin.call(f"/api/evidence/versions/{pdf['versionId']}/text")
+            check(len(pages['pages'])==2 and 'Total revenue' in pages['pages'][0]['text'],'Analysts can inspect page-separated extracted PDF text')
+            ca.call(f"/api/evidence/versions/{pdf['versionId']}/text",status=404)
+            cb.call(f"/api/evidence/versions/{pdf['versionId']}/text",status=404)
+            check(True,'Client and cross-organization access to extracted PDF text are denied')
+            ca.call(f"/api/evidence/tenants/{a['id']}/draft.csv",status=404)
+            draft=admin.call(f"/api/evidence/tenants/{a['id']}/draft.csv",raw=True).decode()
+            check('DRAFT - NOT VALIDATED' in draft and 'PDF text proposal' not in draft and 'synthetic-statements.pdf' in draft,'Draft CSV includes unreviewed source-linked facts and explicit non-validation warning')
+            first=next(f for f in pf if f['metricCode']=='REVENUE' and f['period']=='2026')
+            admin.call(f"/api/evidence/tenants/{a['id']}/facts/review-selected",{'factIds':[first['id']],'status':'Verified','reason':'Cannot bypass unconfirmed context','confirmed':True},status=400)
+            check(True,'Bulk verification cannot bypass individual context validation')
+            ca.call(f"/api/evidence/tenants/{a['id']}/facts/context-selected",{'factIds':[first['id']],'propertyId':'','period':'FY2026','basis':'Audited actual','currency':'CAD','scale':1,'reason':'Test','confirmed':True},status=404)
+            admin.call(f"/api/evidence/tenants/{a['id']}/facts/context-selected",{'factIds':[first['id']],'propertyId':'','period':'FY2026','basis':'Audited actual','currency':'CAD','scale':1,'reason':'Synthetic source checked','confirmed':True})
+            current=next(f for f in workspace(admin,a)['facts'] if f['supersedesId']==first['id'])
+            check(current['value']==1200 and current['unit']=='Currency' and current['status']=='Unreviewed' and current['originalValue']==first['originalValue'],'Batch context appends traceable corrections without changing originals or verifying facts')
+            admin.call(f"/api/evidence/tenants/{a['id']}/facts/review-selected",{'factIds':[current['id']],'status':'Verified','reason':'Synthetic value and context checked','confirmed':False},status=400)
+            admin.call(f"/api/evidence/tenants/{a['id']}/facts/review-selected",{'factIds':[current['id']],'status':'Verified','reason':'Synthetic value and context checked','confirmed':True})
+            check(next(f for f in workspace(admin,a)['facts'] if f['id']==current['id'])['status']=='Verified','Explicit group review verifies eligible facts with a recorded rationale')
+            blank=upload(ca,a,'blank-scanned.pdf',text_pdf(blank=True))
+            admin.call(f"/api/evidence/versions/{blank['versionId']}/import",{})
+            bv=next(v for v in workspace(admin,a)['versions'] if v['id']==blank['versionId'])
+            check(bv['extraction']['state']=='OCR required' and bv['extraction']['proposed']==0,'Image-only or empty PDFs explicitly require OCR and produce no invented facts')
+            invalid=upload(ca,a,'broken.pdf',b'%PDF-1.4\nNOT A REAL PDF\n%%EOF')
+            count=len(workspace(admin,a)['facts'])
+            admin.call(f"/api/evidence/versions/{invalid['versionId']}/import",{},status=400)
+            check(len(workspace(admin,a)['facts'])==count and next(v for v in workspace(admin,a)['versions'] if v['id']==invalid['versionId'])['extraction']['state']=='Extraction failed','Unreadable PDF records a persistent failure without partial facts or loss of source')
             # Internal test access is revoked immediately, including the current encrypted session.
             users = admin.call(f"/api/evidence/tenants/{a['id']}/users")
             user_id = next(u["id"] for u in users if u["email"] == "a@example.test")
             admin.call(f"/api/evidence/tenants/{a['id']}/users/{user_id}", method="DELETE")
             check(not ca.session()["authenticated"], "Revocation invalidates an already issued client session")
             if os.environ.get('EVIDENCE_BROWSER_TEST'):
-                browser_env=dict(os.environ,EVIDENCE_TEST_URL=BASE.replace("127.0.0.1", "localhost"),EVIDENCE_TEST_PASSWORD=PASSWORD,EVIDENCE_TEST_TOTP=totp(),EVIDENCE_TEST_TOTP_SECRET=TOTP_SECRET,EVIDENCE_TEST_REQUIRE_MFA=str(require_mfa).lower())
+                Path(folder,'browser-statements.pdf').write_bytes(text_pdf()+b'\n%BROWSER UNIQUE SYNTHETIC\n')
+                browser_env=dict(os.environ,EVIDENCE_PDF_TEST_FILE=str(Path(folder,'browser-statements.pdf')),EVIDENCE_TEST_URL=BASE.replace("127.0.0.1", "localhost"),EVIDENCE_TEST_PASSWORD=PASSWORD,EVIDENCE_TEST_TOTP=totp(),EVIDENCE_TEST_TOTP_SECRET=TOTP_SECRET,EVIDENCE_TEST_REQUIRE_MFA=str(require_mfa).lower())
                 subprocess.run([os.environ.get('NODE_EXE','node'),'tests/browser_evidence.cjs'],cwd=ROOT,env=browser_env,check=True)
             print(f"EVIDENCE PORTAL: {passed} synthetic integration checks passed.", flush=True)
         finally:
