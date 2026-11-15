@@ -1,5 +1,18 @@
 # Upload evidence and preview data
 
+## Get your first draft report
+
+After uploading and extracting a financial source, open **Data preview and review → Create assessment / report**. You can start with zero verified records.
+
+1. Choose one financial source, its combined summary sheet (or a property) and the period printed in it. Alternative financial projections should be separate cases.
+2. Confirm what the group describes: organization-wide totals or a property, actual/budget/projection basis, currency, monetary scale and the fiscal year. Check the source labels and printed values in the record preview; enter a review note and confirm once.
+3. Click **Check and prepare this group**, then **Confirm review of N eligible records**. Shared context is applied only to the selected source period. Eligible records are reviewed together; genuine conflicts and specific questions remain flagged. You do not need to finish every other file before producing a partial draft.
+4. Click **Create draft assessment and report**. The dashboard opens; choose **Open draft report / save PDF** to read or print the financial summary. The report shows source identity, calculated results and missing information. This is an internal working draft, separate from client sign-off or permission to release an approved report.
+
+A question attached to one fact now affects that fact and its corrections, rather than the whole workbook. Source-wide security/authenticity questions still apply to all of their data. Original extraction flags are retained as history and re-evaluated against confirmed context; competing current values remain blocked. The Questions page filters by source and shows 50 questions at a time.
+
+## Other evidence tools
+
 1. Sign in. If no organization exists, an administrator creates one under **Administration → Create an organization**. Keep the scope `organization` unless separate departments are needed.
 2. Open **Documents → Upload documents**. Choose the appropriate category and reporting period. Successful files are retained independently. Category is an organizational label, not a restriction on which data the file can provide.
 3. Staff uploads can **Extract supported data after upload**. For previously uploaded documents, choose **Extract all ready documents**, or **Extract data / refresh preview** beside a file. Extraction does not verify the contents.

@@ -3,6 +3,7 @@ import base64
 import csv
 import hashlib
 import hmac
+import html
 import http.cookiejar
 import io
 import json
@@ -212,6 +213,12 @@ def assessment_bridge_tests(admin, other_org_client):
     check(page['context']['organization']==t['name'] and not any('NGO' in str(row) for row in page['properties']),'Assessment uses the organization and blank method definitions, never example client data')
     evidence=staff.call(path+'/metrics/'+next(m['id'] for m in page['currentMetrics'] if m['code']=='NOI')+'/evidence')
     check(len(evidence['mappedFacts'])==2 and all(f['sourceId']==version and f['sourceLocation'].startswith('CSV!') for f in evidence['mappedFacts']),'Calculated results retain traceable original file version and cell references')
+    report=html.unescape(staff.call(path+'/report',raw=True).decode())
+    check('INTERNAL DRAFT' in report and '1,000.00' in report and '2.000×' in report and 'synthetic-portfolio.csv' in report,'Internal printable report includes real calculated values, source identity and draft status')
+    client.call(path+'/report',status=404)
+    other_org_client.call(path+'/report',status=404)
+    Client().call(path+'/report',status=401)
+    check(True,'Printable reports enforce staff, tenant and session access')
     Client().call(path+'/pages/P3',status=401)
     client.call(path+'/pages/P3',status=404)
     other_org_client.call(path+'/pages/P3',status=404)
@@ -229,6 +236,44 @@ def assessment_bridge_tests(admin, other_org_client):
     admin.call(f"/api/evidence/versions/{version}/unavailable",{'note':'Synthetic withdrawal test'})
     staff.call(path+'/pages/P3',status=400)
     check(True,'Withdrawing a source immediately blocks an existing portal assessment')
+
+
+def guided_report_tests(admin):
+    t=new_tenant(admin,'Synthetic first report with zero verified records')
+    base=f"/api/evidence/tenants/{t['id']}"
+    raw=b'Metric,2026-2027\nTOTAL REVENUE,1000\nTOTAL OPERATING EXPENSES,600\nANNUAL DEBT SERVICE,200\nCLOSING RESERVE,50\nTOTAL UNITS,10\n'
+    source=upload(admin,t,'first-report.csv',raw)
+    alt=upload(admin,t,'alternative-not-selected.csv',raw.replace(b'1000',b'1100'))
+    for v in [source,alt]:admin.call(f"/api/evidence/versions/{v['versionId']}/import",{})
+    facts=[f for f in workspace(admin,t)['facts'] if f['documentVersionId']==source['versionId']]
+    check(all(f['status']=='Unreviewed' for f in facts) and not workspace(admin,t)['issues'],'Unconfirmed alternative projections do not generate false material conflicts during extraction')
+    revenue=next(f for f in facts if f['metricCode']=='REVENUE');homes=next(f for f in facts if f['metricCode']=='HOMES_TOTAL')
+    # Simulate a legacy automatic flag from before contexts were known.
+    old_question='Conflicting sources report different values for the same metric, scope, period, unit, currency and reporting basis. Review both source versions before selecting a value.'
+    admin.call(base+'/issues',{'versionId':source['versionId'],'factId':revenue['id'],'kind':'Contradictory figures','severity':'Material','question':old_question})
+    homes_issue=admin.call(base+'/issues',{'versionId':source['versionId'],'factId':homes['id'],'kind':'Clarification required','severity':'Material','question':'Please confirm whether this count is homes or beds.'})
+    context={'filter':{'source':source['versionId'],'property':'CSV','period':'2026-2027'},'propertyId':'','basis':'Projection','currency':'CAD','scale':1,'periodOverride':'2026-2027','yearConvention':'Keep ranges','reason':'Source summary checked; only the homes count needs clarification','confirmed':True,'token':''}
+    cp=admin.call(base+'/facts/context-all',context);admin.call(base+'/facts/context-all',{**context,'token':cp['token']})
+    filter={'source':source['versionId'],'property':'__org','period':'2026-2027'}
+    review=admin.call(base+'/facts/review-all/preview',filter)
+    check(review['eligible']==4 and review['blocked']==1,'A legacy raw-data flag and a homes-specific question do not block unrelated financial facts in the same file')
+    admin.call(base+'/facts/review-all',{'filter':filter,'reason':'Financial summary checked together','confirmed':True,'token':review['token']})
+    w=workspace(admin,t);check(next(f for f in w['facts'] if f.get('supersedesId')==homes['id'])['status']=='Unreviewed' and next(i for i in w['issues'] if i['id']==homes_issue['id'])['status']=='Open','Manual fact concerns remain open on the corrected record; no blind bulk approval')
+    case={'sourceVersionIds':[source['versionId']],'basis':'Projection','currency':'CAD','currentYear':'2026-2027','targetCoverage':None,'reason':'One selected source; outstanding count explicitly excluded','confirmed':True}
+    plan=admin.call(base+'/assessments/preview',case)
+    created=admin.call(base+'/assessments',{**case,'token':plan['token']})
+    report=html.unescape(admin.call(f"/api/evidence/assessments/{created['id']}/report",raw=True).decode())
+    check('400.00' in report and '2.000×' in report and 'HOMES_TOTAL is missing' in report and 'alternative-not-selected.csv' not in report,'A partial reviewed financial report is available while genuine count questions stay flagged and alternative projections stay excluded')
+    # Real current-context conflicts and source-wide concerns must still stop verification.
+    current=next(f for f in w['facts'] if f.get('supersedesId')==homes['id'])
+    admin.call('/api/evidence/issues/'+homes_issue['id']+'/response',{'response':'Count definition confirmed','resolve':True})
+    source_issue=admin.call(base+'/issues',{'versionId':source['versionId'],'kind':'Source authenticity','severity':'Material','question':'Synthetic source-wide concern'})
+    stopped=admin.call(base+'/facts/review-all/preview',filter)
+    check(stopped['eligible']==0,'Source-wide material issues continue to block all affected verification')
+    admin.call('/api/evidence/issues/'+source_issue['id']+'/response',{'response':'Synthetic concern resolved','resolve':True})
+    duplicate=admin.call(base+'/facts',{'documentVersionId':source['versionId'],'metricCode':'HOMES_TOTAL','value':11,'unit':'Count','currency':'','period':'2026-2027','basis':'Projection','locator':'CSV!B99','certainty':'Client-reported','reason':'Synthetic conflicting count'})
+    stopped=admin.call(base+'/facts/review-all/preview',filter)
+    check(stopped['eligible']==0 and stopped['blocked']>=2,'Genuine competing values remain blocked after correcting issue scope')
 
 
 def main():
@@ -456,6 +501,7 @@ def main():
             admin.call(f"/api/evidence/versions/{invalid['versionId']}/import",{},status=400)
             check(len(workspace(admin,a)['facts'])==count and next(v for v in workspace(admin,a)['versions'] if v['id']==invalid['versionId'])['extraction']['state']=='Extraction failed','Unreadable PDF records a persistent failure without partial facts or loss of source')
             assessment_bridge_tests(admin, cb)
+            guided_report_tests(admin)
             # Internal test access is revoked immediately, including the current encrypted session.
             users = admin.call(f"/api/evidence/tenants/{a['id']}/users")
             user_id = next(u["id"] for u in users if u["email"] == "a@example.test")

@@ -200,6 +200,13 @@ var negativeCostBridge = Bridge(BridgeFact("REVENUE", 1000), BridgeFact("OPEX", 
 Check(BM(negativeCostBridge, "OPEX") is null && negativeCostBridge.Rows("51_EXCEPTIONS").Any(r => r.Text("Description").Contains("negative source sign")), "Negative source expense signs require explicit correction, never inflate calculated NOI");
 var noTarget = EvidenceAssessmentBuilder.Build(importer, Path.Combine(root, "src/IreiMvp.Web"), bridgeTenant, [], [BridgeFact("REVENUE", 1000), BridgeFact("OPEX", 600), BridgeFact("DEBT_SERVICE", 200)], [bridgeSource], bridgeRequest with { TargetCoverage = null }, []);
 Check(BM(noTarget, "COVERAGE_GAP") is null && noTarget.ImportFindings.Any(f => f.Contains("Target coverage is unconfirmed")), "Bridge never invents the coverage target");
+var draftHtml = EvidenceAssessmentReport.Render(bridgeAssessment);
+Check(draftHtml.Contains("1,000.00") && draftHtml.Contains("INTERNAL DRAFT") && draftHtml.Contains("synthetic.csv"), "Internal draft report includes precise financial figures and source identity");
+Check(EvidenceAssessmentReport.Render(partialBridge).Contains("Missing evidence"), "Incomplete financial report explicitly marks missing values");
+var originalName = bridgeAssessment.Organization; bridgeAssessment.Organization = "<script>alert('test')</script>";
+var safeHtml = EvidenceAssessmentReport.Render(bridgeAssessment);
+Check(!safeHtml.Contains("<script>alert") && safeHtml.Contains("&lt;script&gt;"), "Source text in draft report cannot inject active HTML");
+bridgeAssessment.Organization = originalName;
 Console.WriteLine($"V4.2: {passed} assertions passed. Maturity/date-source acceptance remains WAITING ON DATA, not passed.");
 
 sealed class TestEnvironment(string root) : IWebHostEnvironment
