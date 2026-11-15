@@ -225,7 +225,7 @@
     catch (err) { $('outcome-status').textContent = err.message; }
   };
   nav();
-  if(portal){$('access').hidden=true;$('upload').textContent='Back to evidence';$('upload').onclick=()=>location.href='evidence.html';
+  if(portal){const report=document.createElement('a');report.href=`/api/evidence/assessments/${encodeURIComponent(id)}/report`;report.target='_blank';report.rel='noopener';report.textContent='Open draft report / save PDF';report.className='detail-link';$('upload').after(report);$('access').hidden=true;$('upload').textContent='Back to evidence';$('upload').onclick=()=>location.href='evidence.html';
     fetch('/api/evidence/session',{credentials:'same-origin'}).then(r=>r.json()).then(s=>{if(!s.authenticated)throw Error('Sign into the Evidence Portal, then reopen this assessment.');csrf=s.csrf;return load();}).catch(e=>{$('notice').textContent=e.message;});
   }else if(id)$('access-dialog').showModal();
 })();

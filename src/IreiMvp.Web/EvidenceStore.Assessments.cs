@@ -34,7 +34,7 @@ public sealed partial class EvidenceStore
         return s.Facts.Where(f => f.TenantId == tenant && versions.Contains(f.DocumentVersionId) && f.Status is not ("Rejected" or "Superseded") &&
             (filter.Source.Length == 0 || f.DocumentVersionId == filter.Source) &&
             (filter.Property.Length == 0 || (f.PropertyId.Length > 0 ? f.PropertyId : f.SuggestedProperty.Length > 0 ? f.SuggestedProperty : "__org") == filter.Property) &&
-            (filter.Period.Length == 0 || f.Period == filter.Period) && (filter.Status.Length == 0 || f.Status == filter.Status) &&
+            (filter.Period.Length == 0 || (filter.Period == "__missing" ? f.Period.Length == 0 : f.Period == filter.Period)) && (filter.Status.Length == 0 || f.Status == filter.Status) &&
             $"{f.MetricCode} {f.SourceLabel} {f.Locator}".Contains(filter.Search, StringComparison.OrdinalIgnoreCase)).OrderBy(f => f.Id).ToArray();
     }
     private string? VerificationProblem(EvidenceState s, EvidenceUser u, EvidenceFact f, Dictionary<string, EvidenceFact[]> activeKeys)
@@ -45,8 +45,7 @@ public sealed partial class EvidenceStore
         if (!SourceAvailable(d, v)) return "Source unavailable or not screened";
         try { ValidateFact(s, u, f.TenantId, f); } catch (InvalidDataException e) { return e.Message; }
         if (f.Certainty == "Unavailable") return "Value unavailable";
-        if (s.Issues.Any(i => i.TenantId == f.TenantId && i.Status == "Open" && i.Severity == "Material" &&
-            (i.FactId == f.Id || i.VersionId == f.DocumentVersionId || (i.VersionId.Length == 0 && i.FactId.Length == 0 && i.ScopeId == d.ScopeId)))) return "Resolve material source or scope issue";
+        if (HasMaterialIssue(s, f, d)) return "Resolve material source or scope issue";
         if (f.SupersedesId is not null) { var prior = s.Facts.Single(x => x.Id == f.SupersedesId); FactDocument(s, u, prior); }
         if (activeKeys[FactKey(f)].Any(o => o.Id != f.Id && o.Id != f.SupersedesId)) return "Choose one authoritative fact; duplicate or competing records";
         return null;
@@ -110,7 +109,7 @@ public sealed partial class EvidenceStore
     internal static bool ValidYear(string year) => Regex.IsMatch(year, @"^20\d{2}-20\d{2}$") && int.Parse(year[5..], CultureInfo.InvariantCulture) == int.Parse(year[..4], CultureInfo.InvariantCulture) + 1;
     private static string NormalizeYear(string period, string convention)
     {
-        var p = period.Trim().Replace('–', '-').Replace('/', '-'); if (ValidYear(p)) return p;
+        var p = Regex.Replace(period.Trim(), @"\s+", "").Replace('–', '-').Replace('/', '-'); if (ValidYear(p)) return p;
         var m = Regex.Match(p, @"^(?:FY)?(20\d{2})$", RegexOptions.IgnoreCase); if (!m.Success || convention == "Keep ranges") return "";
         var y = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture); return convention == "Ending year" ? $"{y - 1}-{y}" : $"{y}-{y + 1}";
     }
@@ -125,8 +124,7 @@ public sealed partial class EvidenceStore
         var candidates = FilterFacts(s, u, tenant, new()).Where(f => input.SourceVersionIds.Contains(f.DocumentVersionId)).ToArray();
         var facts = candidates.Where(f => f.Status == "Verified" && f.Basis == input.Basis && f.SuggestedProperty.Length == 0 && ValidYear(f.Period) &&
             EvidenceAssessmentBuilder.Supported.Contains(f.MetricCode) && f.Value.HasValue && (f.Unit == "Count" || f.Currency == input.Currency)).ToArray();
-        foreach (var f in facts) { ValidateFact(s, u, tenant, f); if (s.Issues.Any(i => i.TenantId == tenant && i.Status == "Open" && i.Severity == "Material" &&
-            (i.FactId == f.Id || i.VersionId == f.DocumentVersionId || (i.FactId.Length == 0 && i.VersionId.Length == 0 && i.ScopeId == FactDocument(s, u, f).ScopeId)))) throw new InvalidDataException("Resolve material issues affecting selected verified data before creating an assessment."); }
+        foreach (var f in facts) { ValidateFact(s, u, tenant, f); if ((HasMaterialIssue(s, f, FactDocument(s, u, f)) || ActiveValueConflict(s, f))) throw new InvalidDataException("Resolve material issues affecting selected verified data before creating an assessment."); }
         var years = facts.Select(f => f.Period).Distinct().Order().ToArray(); var warnings = new List<string>();
         foreach (var g in facts.GroupBy(f => (f.PropertyId, f.Period, f.MetricCode)).Where(g => g.Count() > 1)) warnings.Add($"{g.Key.Period} / {g.Key.PropertyId} / {g.Key.MetricCode}: {g.Count()} competing totals; this metric will be Conflict, never summed.");
         warnings.Add($"{candidates.Length - facts.Length} records excluded: unreviewed, other reporting basis/currency, invalid fiscal period or not supported by the financial engine.");
@@ -156,6 +154,8 @@ public sealed partial class EvidenceStore
         foreach (var source in item.SourceVersionIds) { var v = Version(s, u, source); if (!SourceAvailable(Document(s, u, v.DocumentId), v)) throw new InvalidDataException("A source is now unavailable. Restore its authorized reference or create a new assessment from available evidence."); }
         return item;
     }
+    public Task<string> AssessmentReport(EvidenceUser actor, string id, CancellationToken ct) => Transaction(s =>
+    { var u = Actor(s, actor); var item = Assessment(s, u, id); Audit(s, u, item.TenantId, "Internal draft report viewed", id); return EvidenceAssessmentReport.Render(item.Assessment); }, ct);
     public Task<object> AssessmentPage(EvidenceUser actor, string id, string page, CancellationToken ct) => Transaction(s => V4ViewService.Page(Assessment(s, Actor(s, actor), id).Assessment, page), ct);
     public Task<object> AssessmentEvidence(EvidenceUser actor, string id, string metricId, CancellationToken ct) => Transaction(s =>
     {

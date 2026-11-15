@@ -37,12 +37,33 @@ public sealed partial class EvidenceStore
         { var prior = s.Facts.SingleOrDefault(x => x.Id == f.SupersedesId && x.TenantId == tenant) ?? throw new EvidenceDeniedException(); FactDocument(s, u, prior); f.OriginalValue = prior.OriginalValue; }
         s.Facts.Add(f); AddContradictions(s, u, f); Audit(s, u, tenant, "Fact proposed", f.Id, f.SupersedesId is null ? "New source-linked observation" : "Correction retains prior fact"); return Clone(f);
     }, ct);
+    private const string AutoConflictQuestion = "Conflicting sources report different values for the same metric, scope, period, unit, currency and reporting basis. Review both source versions before selecting a value.";
+    private static bool AutomaticConflict(EvidenceIssue issue) => issue.Kind == "Contradictory figures" && issue.Question == AutoConflictQuestion && issue.FactId.Length > 0;
+    // A fact-level question does not quarantine an entire workbook. Source/scope concerns still do.
+    private static bool ActiveValueConflict(EvidenceState s, EvidenceFact fact)
+    {
+        var key = FactKey(fact);
+        return s.Facts.Any(other => other.TenantId == fact.TenantId && other.Id != fact.Id && other.Id != fact.SupersedesId &&
+            other.Status is not ("Rejected" or "Superseded") && other.Certainty != "Unavailable" && FactKey(other) == key &&
+            (other.Value != fact.Value || other.TextValue != fact.TextValue));
+    }
+    private static bool HasMaterialIssue(EvidenceState s, EvidenceFact fact, EvidenceDocument document)
+    {
+        var ancestors = new HashSet<string> { fact.Id }; var parent = fact.SupersedesId;
+        while (parent is not null && ancestors.Add(parent)) parent = s.Facts.FirstOrDefault(f => f.Id == parent)?.SupersedesId;
+        return s.Issues.Any(issue =>
+        {
+            if (issue.TenantId != fact.TenantId || issue.Status != "Open" || issue.Severity != "Material") return false;
+            if (issue.FactId.Length > 0) return ancestors.Contains(issue.FactId) && (!AutomaticConflict(issue) || ActiveValueConflict(s, fact));
+            return issue.VersionId.Length > 0 ? issue.VersionId == fact.DocumentVersionId : issue.ScopeId == document.ScopeId;
+        });
+    }
     private static void AddContradictions(EvidenceState s, EvidenceUser u, EvidenceFact fact)
     {
-        if (fact.Certainty == "Unavailable") return;
+        if (fact.Certainty == "Unavailable" || fact.Unit == "Unconfirmed" || fact.Basis == "Unconfirmed" || fact.SuggestedProperty.Length > 0) return;
         var conflicts = s.Facts.Where(x => x.Id != fact.Id && x.Certainty != "Unavailable" && FactKey(x) == FactKey(fact) && x.Status is not ("Rejected" or "Superseded") && (x.Value != fact.Value || x.TextValue != fact.TextValue)).ToArray();
         if (conflicts.Length > 0) s.Issues.Add(new() { TenantId = fact.TenantId, VersionId = fact.DocumentVersionId, FactId = fact.Id, Kind = "Contradictory figures", Owner = u.Id,
-            Question = "Conflicting sources report different values for the same metric, scope, period, unit, currency and reporting basis. Review both source versions before selecting a value." });
+            Question = AutoConflictQuestion });
     }
     public Task<EvidenceFact> ReviewFact(EvidenceUser actor, string fact, EvidenceFactReview input, CancellationToken ct) =>
         Transaction(s => ReviewFactCore(s, Actor(s, actor), fact, input), ct);
@@ -57,7 +78,8 @@ public sealed partial class EvidenceStore
             ValidateFact(s, u, d.TenantId, f);
             if (f.Certainty == "Unavailable") throw new InvalidDataException("Unavailable values cannot become verified numeric facts.");
             if (Version(s, u, f.DocumentVersionId).Processing != "Accepted") throw new InvalidDataException("Source must clear file screening before factual verification.");
-            if (s.Issues.Any(i => i.TenantId == d.TenantId && i.Status == "Open" && i.Severity == "Material" && (i.FactId == f.Id || i.VersionId == f.DocumentVersionId))) throw new InvalidDataException("Resolve the affected material exception before verifying this fact.");
+            if (HasMaterialIssue(s, f, d)) throw new InvalidDataException("Resolve the affected material exception before verifying this fact.");
+            if (ActiveValueConflict(s, f)) throw new InvalidDataException("Conflicting active values remain for this metric and reporting context. Resolve the competing figures before verification.");
             if (s.Facts.Any(other => other.Id != f.Id && FactKey(other) == FactKey(f) && other.Status == "Verified" && other.Id != f.SupersedesId)) throw new InvalidDataException("A verified fact already exists. Select it explicitly as the fact being corrected.");
         }
         RecordFactReview(s, u, f, d, input); return Clone(f);
