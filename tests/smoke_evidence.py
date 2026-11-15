@@ -276,6 +276,42 @@ def guided_report_tests(admin):
     check(stopped['eligible']==0 and stopped['blocked']>=2,'Genuine competing values remain blocked after correcting issue scope')
 
 
+def v2_session_tests(admin, client, analyst):
+    anonymous = Client()
+    for caller in (anonymous, client, analyst):
+        caller.call('/api/admin/submissions', status=403)
+        caller.call('/api/submissions', b'blocked', method='POST', status=403)
+    check(True, 'Anonymous, client and scoped analyst sessions cannot access the global V2 dashboard')
+    admin.call('/api/submissions', b'blocked', method='POST', csrf=False, status=403)
+    original_csrf = admin.csrf
+    admin.csrf = 'invalid-synthetic-token'
+    admin.call('/api/submissions', b'blocked', method='POST', status=403)
+    admin.csrf = original_csrf
+    check(True, 'V2 administrator cookie uploads require a matching session CSRF token')
+    boundary = 'v2-' + uuid.uuid4().hex
+    source = ROOT / 'src/IreiMvp.Web/Data/Examples/IREI_MVP_Stage1_V2_NGOB_Demo.xlsx'
+    data = (f'--{boundary}\r\nContent-Disposition: form-data; name="organizationName"\r\n\r\nSynthetic V2 Session Test\r\n'
+            f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="synthetic-v2.xlsx"\r\n'
+            'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\r\n').encode() + source.read_bytes() + f'\r\n--{boundary}--\r\n'.encode()
+    request = urllib.request.Request(BASE + '/api/submissions', data=data, headers={
+        'Content-Type': 'multipart/form-data; boundary=' + boundary, 'X-CSRF-Token': admin.csrf})
+    with admin.opener.open(request, timeout=60) as response:
+        submission = json.load(response)
+    check(submission['versionStatus'] == 'Working' and submission['dashboard']['totalProperties'] > 0,
+          'Existing portal administrator uploads a real V2 workbook without an admin key')
+    path = '/api/submissions/' + submission['id']
+    check(admin.call(path)['id'] == submission['id'], 'Administrator session reopens the uploaded V2 assessment')
+    check(any(s['id'] == submission['id'] for s in admin.call('/api/admin/submissions')),
+          'Administrator session can list V2 assessments')
+    output = '/api/admin/submissions/' + submission['id'] + '/output'
+    check(admin.call(output, raw=True).startswith(b'PK'), 'Administrator session downloads the generated V2 Excel workbook')
+    client.call(path, status=403)
+    analyst.call(output, status=403)
+    request = urllib.request.Request(BASE + '/api/admin/submissions', headers={'X-Admin-Key': 'synthetic-v2-test-key'})
+    with urllib.request.urlopen(request, timeout=60) as response:
+        check(response.status == 200, 'Existing explicit staff-key integrations still work')
+
+
 def main():
     require_mfa = os.environ.get("EVIDENCE_TEST_REQUIRE_MFA", "false").lower() == "true"
     with tempfile.TemporaryDirectory(prefix="irei-evidence-test-") as folder:
@@ -283,7 +319,8 @@ def main():
         cmd = json.loads(os.environ.get('EVIDENCE_TEST_SERVER', json.dumps([DOTNET, str(ROOT / f"src/IreiMvp.Web/bin/{os.environ.get('EVIDENCE_CONFIGURATION','Debug')}/net8.0/IreiMvp.Web.dll")]))) + ["--contentRoot", str(ROOT / "src/IreiMvp.Web"), "--urls", BASE.replace("127.0.0.1", "localhost")]
         env = dict(os.environ, ASPNETCORE_ENVIRONMENT="Development", Evidence__Enabled="true", Evidence__RequireAdminMfa=str(require_mfa).lower(), Evidence__Prototype="true", Evidence__AllowLocalHttp="true", Evidence__EncryptionKey=base64.b64encode(os.urandom(32)).decode(),
             Evidence__BootstrapEmail="admin@example.test", Evidence__BootstrapPassword=PASSWORD, Evidence__BootstrapTotpSecret=TOTP_SECRET, Evidence__StoragePath=folder,
-            Evidence__FileLimitBytes="1048576", Evidence__BatchLimitBytes="4194304", Evidence__TenantQuotaBytes="6291456", Evidence__GlobalQuotaBytes="16777216")
+            Evidence__FileLimitBytes="1048576", Evidence__BatchLimitBytes="4194304", Evidence__TenantQuotaBytes="6291456", Evidence__GlobalQuotaBytes="16777216",
+            Irei__DataRoot=str(Path(folder) / 'legacy'), Irei__AdminKey='synthetic-v2-test-key')
         server = subprocess.Popen(cmd, cwd=ROOT, env=env, stdout=log, stderr=log)
         try:
             admin = Client()
@@ -319,6 +356,7 @@ def main():
             department, _ = invite(admin, a, "department@example.test", scopes=["department-b"])
             approver, _ = invite(admin, a, "approver@example.test", role="ClientApprover", scopes=["*"])
             analyst, _ = invite(admin, a, "analyst@example.test", role="IreiAnalyst")
+            v2_session_tests(admin, ca, analyst)
             check(ca.session()["profile"]["tenants"][0]["id"] == a["id"], "Invitation assigns only its authorized organization")
             outsider = Client()
             outsider.call(f"/api/evidence/tenants/{a['id']}", status=401)
@@ -511,6 +549,8 @@ def main():
                 Path(folder,'browser-statements.pdf').write_bytes(text_pdf()+b'\n%BROWSER UNIQUE SYNTHETIC\n')
                 browser_env=dict(os.environ,EVIDENCE_PDF_TEST_FILE=str(Path(folder,'browser-statements.pdf')),EVIDENCE_TEST_URL=BASE.replace("127.0.0.1", "localhost"),EVIDENCE_TEST_PASSWORD=PASSWORD,EVIDENCE_TEST_TOTP=totp(),EVIDENCE_TEST_TOTP_SECRET=TOTP_SECRET,EVIDENCE_TEST_REQUIRE_MFA=str(require_mfa).lower())
                 subprocess.run([os.environ.get('NODE_EXE','node'),'tests/browser_evidence.cjs'],cwd=ROOT,env=browser_env,check=True)
+                if not require_mfa:
+                    subprocess.run([os.environ.get('NODE_EXE','node'),'tests/browser_v2.cjs'],cwd=ROOT,env=browser_env,check=True)
             print(f"EVIDENCE PORTAL: {passed} synthetic integration checks passed.", flush=True)
         finally:
             server.terminate()

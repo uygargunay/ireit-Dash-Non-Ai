@@ -55,6 +55,12 @@ Open:
 
 No admin key is committed to source control. Set `Irei__AdminKey` in the process environment before using private workbook or approved-report downloads. Keep the value out of URLs, logs and committed configuration.
 
+### V2 uploads when the evidence portal is enabled
+
+Sign in at `/evidence.html` with an `IreiAdmin` account, then open `/` and upload your Excel workbook. V2 uses the existing administrator session and refreshes its CSRF token before each request. If sign-in is needed, the upload dialog links to the portal in another tab and keeps the selected workbook so you can return and retry.
+
+Client and scoped analyst accounts cannot use V2's global assessment APIs. Explicit `X-Admin-Key` integrations remain supported; V3, V4 and intake keep their existing access controls. When the portal is disabled, the standalone V2 upload workflow is unchanged.
+
 ## Docker
 
 ```bash
@@ -80,7 +86,7 @@ App_Data/
       Reports/<report-id>.xlsx
 ```
 
-Only safe public view models are returned by participant APIs. Server filesystem paths are not included. Generated assessment and approved-report downloads require the configured authorization key in the `X-Admin-Key` request header in this MVP.
+Only safe public view models are returned by participant APIs. Server filesystem paths are not included. Generated V2 assessment and approved-report downloads require either the configured `X-Admin-Key` header or an active `IreiAdmin` portal session when the portal is enabled.
 
 ## Verification
 

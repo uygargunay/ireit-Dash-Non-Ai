@@ -107,8 +107,9 @@ async function restoreLastSubmission() {
   try {
     const submission = await api(`/api/submissions/${encodeURIComponent(id)}`);
     setSubmission(submission, false);
-  } catch {
-    localStorage.removeItem("irei:lastSubmission");
+  } catch (error) {
+    if (!error.requiresStaffSignIn) localStorage.removeItem("irei:lastSubmission");
+    else toast(error.message, true);
     render();
   }
 }
@@ -718,13 +719,15 @@ async function shareReport(id) {
 }
 
 async function downloadReport(id) {
-  const key = prompt("Authorized download key");
-  if (!key) return;
   setBusy(true);
   try {
-    const response = await fetch(`/api/submissions/${encodeURIComponent(state.submission.id)}/reports/${encodeURIComponent(id)}/download`, {
-      headers: { "X-Admin-Key": key }
-    });
+    let response = await staffFetch(`/api/submissions/${encodeURIComponent(state.submission.id)}/reports/${encodeURIComponent(id)}/download`);
+    // Standalone deployments retain their existing key-based report downloads.
+    if (response.status === 401) {
+      const key = prompt("Authorized download key");
+      if (!key) return;
+      response = await fetch(`/api/submissions/${encodeURIComponent(state.submission.id)}/reports/${encodeURIComponent(id)}/download`, { headers: { "X-Admin-Key": key } });
+    }
     if (!response.ok) {
       throw new Error(response.status === 401 ? "The authorization key is not valid." : "The report could not be downloaded.");
     }
@@ -795,10 +798,31 @@ async function reloadSubmission() {
   setSubmission(submission);
 }
 
+async function staffFetch(url, options = {}) {
+  const headers = new Headers(options.headers);
+  const sessionResponse = await fetch("/api/evidence/session", { cache: "no-store" });
+  if (sessionResponse.ok && (sessionResponse.headers.get("content-type") || "").includes("json")) {
+    const session = await sessionResponse.json();
+    if (!session.authenticated || session.profile?.role !== "IreiAdmin") {
+      document.getElementById("staff-sign-in").classList.remove("hidden");
+      const error = new Error(session.authenticated
+        ? "This internal V2 dashboard requires an IREI administrator account. Sign in to the portal with that account, then retry."
+        : "Sign in to the portal in another tab, then return here and retry. Your selected workbook has been kept.");
+      error.requiresStaffSignIn = true;
+      throw error;
+    }
+    document.getElementById("staff-sign-in").classList.add("hidden");
+    if (!["GET", "HEAD"].includes((options.method || "GET").toUpperCase())) headers.set("X-CSRF-Token", session.csrf);
+  } else if (!sessionResponse.ok && sessionResponse.status !== 404) {
+    throw new Error("Could not check your sign-in. Please retry.");
+  }
+  return fetch(url, { ...options, headers });
+}
+
 async function api(url, options = {}) {
   setBusy(true);
   try {
-    const response = await fetch(url, options);
+    const response = await staffFetch(url, options);
     const type = response.headers.get("content-type") || "";
     const payload = type.includes("json") ? await response.json() : await response.text();
     if (!response.ok) {
