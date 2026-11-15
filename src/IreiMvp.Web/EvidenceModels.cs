@@ -22,6 +22,7 @@ public sealed class EvidenceOptions
 
 public sealed class EvidenceState
 {
+    public List<EvidenceAssessment> Assessments { get; set; } = [];
     public List<EvidenceUser> Users { get; set; } = [];
     public List<EvidenceInvitation> Invitations { get; set; } = [];
     public List<EvidenceTenant> Tenants { get; set; } = [];

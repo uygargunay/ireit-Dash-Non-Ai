@@ -7,9 +7,9 @@ namespace IreiMvp.Web;
 // accepted as inputs. Financial and analysis formulas are executed by V4CalculationEngine.
 public sealed class V4WorkbookImporter(XlsxWorkbookService xlsx)
 {
-    public V4Assessment Read(string path, string id, string fileName)
+    public V4Assessment ReadStructure(string path, string id, string fileName) => ReadStructure(xlsx.Read(path), id, fileName);
+    private static V4Assessment ReadStructure(WorkbookSnapshot workbook, string id, string fileName)
     {
-        var workbook = xlsx.Read(path);
         if (!workbook.HasSheet("02_DISPLAY_CONFIG") || !workbook.HasSheet("57_OPTION_ANALYSIS"))
             throw new InvalidDataException("Use the V4.2 template. Other models require analyst mapping through the retained V3 intake.");
         var result = new V4Assessment { Id = id, FileName = Path.GetFileName(fileName), Sha256 = workbook.Sha256 };
@@ -44,6 +44,12 @@ public sealed class V4WorkbookImporter(XlsxWorkbookService xlsx)
             }
             result.Registers[sheet.Name] = rows;
         }
+        return result;
+    }
+    public V4Assessment Read(string path, string id, string fileName)
+    {
+        var workbook = xlsx.Read(path);
+        var result = ReadStructure(workbook, id, fileName);
         var assessment = result.Rows("01_ASSESSMENT").SingleOrDefault()
             ?? throw new InvalidDataException("Complete one assessment record before upload.");
         result.AssessmentId = assessment.Text("Assessment_ID"); result.OrganizationId = assessment.Text("Organization_ID");

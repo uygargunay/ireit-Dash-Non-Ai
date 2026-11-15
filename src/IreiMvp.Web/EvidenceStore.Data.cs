@@ -59,10 +59,14 @@ public sealed partial class EvidenceStore
             if (Version(s, u, f.DocumentVersionId).Processing != "Accepted") throw new InvalidDataException("Source must clear file screening before factual verification.");
             if (s.Issues.Any(i => i.TenantId == d.TenantId && i.Status == "Open" && i.Severity == "Material" && (i.FactId == f.Id || i.VersionId == f.DocumentVersionId))) throw new InvalidDataException("Resolve the affected material exception before verifying this fact.");
             if (s.Facts.Any(other => other.Id != f.Id && FactKey(other) == FactKey(f) && other.Status == "Verified" && other.Id != f.SupersedesId)) throw new InvalidDataException("A verified fact already exists. Select it explicitly as the fact being corrected.");
-            if (f.SupersedesId is not null)
-            { var prior = s.Facts.Single(x => x.Id == f.SupersedesId); FactDocument(s, u, prior); prior.Status = "Superseded"; Audit(s, u, d.TenantId, "Fact superseded", prior.Id, f.Id); }
         }
-        f.Status = input.Status; f.Reviewer = u.Id; Audit(s, u, d.TenantId, "Fact reviewed", f.Id, input.Status + ": " + input.Reason); return Clone(f);
+        RecordFactReview(s, u, f, d, input); return Clone(f);
+    }
+    private static void RecordFactReview(EvidenceState s, EvidenceUser u, EvidenceFact f, EvidenceDocument d, EvidenceFactReview input)
+    {
+        if (input.Status == "Verified" && f.SupersedesId is not null)
+        { var prior = s.Facts.Single(x => x.Id == f.SupersedesId); FactDocument(s, u, prior); prior.Status = "Superseded"; Audit(s, u, d.TenantId, "Fact superseded", prior.Id, f.Id); }
+        f.Status = input.Status; f.Reviewer = u.Id; Audit(s, u, d.TenantId, "Fact reviewed", f.Id, input.Status + ": " + input.Reason);
     }
     public Task<object> ImportSpreadsheet(EvidenceUser actor, string versionId, IntakeExtractor extractor, CancellationToken ct) => Transaction(s =>
     {
