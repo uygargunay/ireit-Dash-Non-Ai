@@ -67,7 +67,7 @@ public static class V4ViewService
             Context = new { a.Id, a.AssessmentId, a.OrganizationId, a.Organization, a.Currency, a.Version, a.Status, a.MethodologyVersion,
                 CurrentYear = year, FullOperationYear = full, Scenario = V4CalculationEngine.Years(a).FirstOrDefault(y => y.Year == year).Scenario,
                 Badge = "Pilot – management review", ConfigurationVersion = a.Version, a.Sha256,
-                SourceVersion = a.Rows("10_SOURCE_REGISTER").FirstOrDefault(r => r.Text("Authoritative_Status") == "Primary")?.Text("Version"),
+                SourceVersion = a.Setting("EVIDENCE_SOURCE_VERSION").Length > 0 ? a.Setting("EVIDENCE_SOURCE_VERSION") : a.Rows("10_SOURCE_REGISTER").FirstOrDefault(r => r.Text("Authoritative_Status") == "Primary")?.Text("Version"),
                 PermittedActions = new[] { "Review", "Test option", "Record action", "Append decision" }, ExternalRelease = "Not authorized" },
             Pages = a.Rows("04_PAGE_REGISTRY"), Page = page, Tiles = tiles, Sections = sections,
             CurrentMetrics = a.Metrics.Where(m => m.Scope == scope && m.Year == year),

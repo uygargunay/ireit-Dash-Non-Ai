@@ -7,7 +7,8 @@
   const icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z"/><path d="m8 12 3 3 5-6"/></svg>';
   let id = new URLSearchParams(location.search).get('assessment') || '';
   let page = /^#P[1-7]$/.test(location.hash) ? location.hash.slice(1) : 'P1';
-  let key = ''; let data = null;
+  const portal = new URLSearchParams(location.search).get('portal') === '1';
+  let csrf = ''; let key = ''; let data = null;
   // Formatting only: all financial values, counts, option results and chart dimensions are server-owned.
   const money = v => v == null ? 'No data available' : v === 0 ? '$0' : `${v < 0 ? '-' : ''}$${(Math.abs(v) / 1000000).toFixed(2)}M`;
   const ratio = v => v == null ? 'No data available' : `${v.toFixed(v >= .99 && v < 1 ? 3 : 2)}x`;
@@ -123,22 +124,23 @@
     $('title').textContent = field(data.pages.find(r => r.id === page), 'Page_Title') || `Page ${page.slice(1)}: ${titles[Number(page.slice(1)) - 1]}`;
     $('subtitle').textContent = `${data.context.organization} Portfolio (Pilot)`;
     $('context').textContent = `FY${data.context.currentYear} · ${data.context.scenario} · ${data.context.sourceVersion || 'Source version to confirm'} financial controls · ${data.context.methodologyVersion} · Working version ${data.context.version}`;
-    $('year-control').hidden = false; $('review').hidden = false;
+    $('year-control').hidden = false; $('review').hidden = portal;
     $('year').innerHTML = data.financialOutlook.map(y => `<option ${y.year === data.context.currentYear ? 'selected' : ''}>${esc(y.year)}</option>`).join('');
     $('page').innerHTML = tiles() + ({ P1: page1, P2: page2, P3: page3, P4: page4, P5: page5, P6: page6, P7: page7 }[page])() + storedInterpretation();
+    if(portal){document.querySelectorAll('#outcome-open').forEach(e=>e.hidden=true);}
     nav();
   }
   function nav() {
     $('navigation').innerHTML = labels.map((label, i) => `<a href="#P${i + 1}" ${page === `P${i + 1}` ? 'class="active" aria-current="page"' : ''}>${icon}<span>${esc(data ? field(data.pages.find(r => r.id === `P${i + 1}`), 'Sidebar_Label') || label : label)}</span></a>`).join('');
   }
   async function api(path, options = {}) {
-    const response = await fetch(`/api/v4/${path}`, { ...options, headers: { 'X-Admin-Key': key, ...options.headers } });
+    const response = await fetch(`/api/${portal?'evidence':'v4'}/${path}`, { ...options, credentials:'same-origin', headers: { ...(portal?{'X-CSRF-Token':csrf}:{'X-Admin-Key':key}), ...options.headers } });
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(response.status === 401 ? 'Authorized pilot access is required.' : body.error || `Request failed (${response.status}).`);
+    if (!response.ok) throw new Error(response.status === 401 ? portal ? 'Sign into the Evidence Portal, then reopen this assessment.' : 'Authorized pilot access is required.' : body.error || `Request failed (${response.status}).`);
     return body;
   }
   async function load() {
-    if (!id || !key) return;
+    if (!id || (!portal && !key)) return;
     $('notice').textContent = '';
     try { data = await api(`assessments/${id}/pages/${page}`); render(); }
     catch (e) { $('notice').textContent = e.message; }
@@ -166,7 +168,7 @@
       } catch (err) { $('evidence-body').textContent = err.message; }
       return;
     }
-    const r = e.target.closest('[data-record]'); if (r) openRecord(r.dataset.sheet, r.dataset.record);
+    const r = e.target.closest('[data-record]'); if(r&&portal){const record=rows(r.dataset.sheet).find(x=>x.id===r.dataset.record);$('evidence-dialog').showModal();$('evidence-body').innerHTML=panel('Assessment record',table(['Field','Value'],Object.entries(record?.fields||{}).map(([k,v])=>[esc(k),esc(v)])))+'<p>Correct or review the original evidence in the portal, then create a new assessment. This assessment preserves its original input snapshot.</p>';return;}if (r) openRecord(r.dataset.sheet, r.dataset.record);
   });
   window.addEventListener('hashchange', () => { page = /^#P[1-7]$/.test(location.hash) ? location.hash.slice(1) : 'P1'; nav(); load(); });
   $('access').onclick = () => $('access-dialog').showModal();
@@ -222,5 +224,8 @@
     try { await api(`assessments/${id}/outcomes`, { ...jsonOptions(body), method: 'POST' }); $('outcome-dialog').close(); await load(); }
     catch (err) { $('outcome-status').textContent = err.message; }
   };
-  nav(); if (id) $('access-dialog').showModal();
+  nav();
+  if(portal){$('access').hidden=true;$('upload').textContent='Back to evidence';$('upload').onclick=()=>location.href='evidence.html';
+    fetch('/api/evidence/session',{credentials:'same-origin'}).then(r=>r.json()).then(s=>{if(!s.authenticated)throw Error('Sign into the Evidence Portal, then reopen this assessment.');csrf=s.csrf;return load();}).catch(e=>{$('notice').textContent=e.message;});
+  }else if(id)$('access-dialog').showModal();
 })();

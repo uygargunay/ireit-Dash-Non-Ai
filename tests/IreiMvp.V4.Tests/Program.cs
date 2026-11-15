@@ -168,6 +168,38 @@ try
     Check(Directory.GetFiles(Path.Combine(temp, "App_Data/V4Assessments", working.Id, "Versions")).Length == working.Version, "Immutable version snapshots");
 }
 finally { Directory.Delete(temp, true); }
+// Reviewed-evidence bridge: synthetic controls exercise failure modes independently of workbook fixtures.
+var bridgeTenant = new EvidenceTenant { Id = "SYNTHETIC-TENANT", Name = "Synthetic bridge organization", ReportingCutoff = "2026-10-31" };
+var bridgeSource = new EvidenceVersion { Id = "SOURCE-1", Name = "synthetic.csv", Hash = "synthetic-sha256", Number = 1 };
+var bridgeRequest = new EvidenceCreateAssessment([bridgeSource.Id], "Projection", "CAD", "2026-2027", 1.25m, "Synthetic review", true);
+EvidenceFact BridgeFact(string code, decimal value, string property = "") => new() { MetricCode = code, Value = value, PropertyId = property,
+    DocumentVersionId = bridgeSource.Id, Period = "2026-2027", Basis = "Projection", Currency = code == "HOMES_TOTAL" ? "" : "CAD",
+    Unit = code == "HOMES_TOTAL" ? "Count" : "Currency", Status = "Verified", Certainty = "Verified source", Locator = "CSV!B" + Guid.NewGuid().ToString("N") };
+V4Assessment Bridge(params EvidenceFact[] facts) => EvidenceAssessmentBuilder.Build(importer, Path.Combine(root, "src/IreiMvp.Web"), bridgeTenant, [], facts, [bridgeSource], bridgeRequest, []);
+var bridgeAssessment = Bridge(BridgeFact("REVENUE", 1000), BridgeFact("OPEX_SOCIETY", 100), BridgeFact("OPEX_BUILDINGS", 500), BridgeFact("DEBT_PRINCIPAL", 150), BridgeFact("DEBT_INTEREST", 50));
+var bridgeScope = bridgeAssessment.Setting("PORTFOLIO_PROPERTY_ID");
+decimal? BM(V4Assessment b, string code) => b.Metric(bridgeScope, "2026-2027", code)?.Value;
+Near(BM(bridgeAssessment, "OPEX"), 600, "Bridge derives costs from a complete unique component pair");
+Near(BM(bridgeAssessment, "DEBT_SERVICE"), 200, "Bridge derives debt service from a complete unique component pair");
+Near(BM(bridgeAssessment, "DSCR"), 2m, "Bridge uses the existing precise V4 calculation engine");
+Check(bridgeAssessment.Facts.Single(f => f.Code == "OPEX").InputCells.Length == 2, "Derived control preserves both component fact identities");
+Check(bridgeAssessment.Organization == bridgeTenant.Name && bridgeAssessment.Rows("31_PROPERTY").Count() == 0 && !bridgeAssessment.Rows("32_FINANCIAL").Any(r => r.Text("Source_ID") != bridgeSource.Id), "Bridge inherits no template financial data or property examples");
+Check(BM(bridgeAssessment, "RESERVE_CLOSING") is null && bridgeAssessment.Rows("51_EXCEPTIONS").Any(r => r.Text("Description").Contains("RESERVE_CLOSING")), "Missing reserves stay null with a visible evidence question");
+var duplicateBridge = Bridge(BridgeFact("REVENUE", 1000), BridgeFact("REVENUE", 1000), BridgeFact("OPEX", 600), BridgeFact("DEBT_SERVICE", 200));
+Check(BM(duplicateBridge, "REVENUE") is null && duplicateBridge.Metric(bridgeScope, "2026-2027", "REVENUE")?.ValueState == "Conflict", "Equal duplicate totals are conflicts, never added or silently selected");
+var mismatchedBridge = Bridge(BridgeFact("REVENUE", 1000), BridgeFact("OPEX", 700), BridgeFact("OPEX_SOCIETY", 100), BridgeFact("OPEX_BUILDINGS", 500), BridgeFact("DEBT_SERVICE", 200));
+Check(BM(mismatchedBridge, "OPEX") is null && mismatchedBridge.Rows("51_EXCEPTIONS").Any(r => r.Text("Description").Contains("does not reconcile")), "Mismatched total and components withhold the financial result");
+var partialBridge = Bridge(BridgeFact("REVENUE", 1000), BridgeFact("OPEX_SOCIETY", 100), BridgeFact("DEBT_PRINCIPAL", 150));
+Check(BM(partialBridge, "OPEX") is null && BM(partialBridge, "DEBT_SERVICE") is null, "An incomplete component pair cannot create a total");
+var propertyBridge = Bridge(BridgeFact("REVENUE", 1000, "PROPERTY-1"), BridgeFact("OPEX", 600, "PROPERTY-1"), BridgeFact("DEBT_SERVICE", 200, "PROPERTY-1"));
+Check(BM(propertyBridge, "REVENUE") is null && propertyBridge.Metric("PROPERTY-1", "2026-2027", "NOI")?.Value == 400, "Property calculations work without inferring portfolio coverage or totals");
+var zeroDebtBridge = Bridge(BridgeFact("REVENUE", 1000), BridgeFact("OPEX", 600), BridgeFact("DEBT_SERVICE", 0));
+Check(zeroDebtBridge.Metric(bridgeScope, "2026-2027", "DSCR")?.ValueState == "Not Applicable", "Reviewed zero debt is distinct from a missing debt input");
+Check(bridgeAssessment.Setting("FULL_OPERATION_FISCAL_YEAR") == "" && bridgeAssessment.ImportFindings.Any(f => f.Contains("Full-operation fiscal year is unconfirmed")), "Bridge does not assume the selected year represents full operations");
+var negativeCostBridge = Bridge(BridgeFact("REVENUE", 1000), BridgeFact("OPEX", -600), BridgeFact("DEBT_SERVICE", 200));
+Check(BM(negativeCostBridge, "OPEX") is null && negativeCostBridge.Rows("51_EXCEPTIONS").Any(r => r.Text("Description").Contains("negative source sign")), "Negative source expense signs require explicit correction, never inflate calculated NOI");
+var noTarget = EvidenceAssessmentBuilder.Build(importer, Path.Combine(root, "src/IreiMvp.Web"), bridgeTenant, [], [BridgeFact("REVENUE", 1000), BridgeFact("OPEX", 600), BridgeFact("DEBT_SERVICE", 200)], [bridgeSource], bridgeRequest with { TargetCoverage = null }, []);
+Check(BM(noTarget, "COVERAGE_GAP") is null && noTarget.ImportFindings.Any(f => f.Contains("Target coverage is unconfirmed")), "Bridge never invents the coverage target");
 Console.WriteLine($"V4.2: {passed} assertions passed. Maturity/date-source acceptance remains WAITING ON DATA, not passed.");
 
 sealed class TestEnvironment(string root) : IWebHostEnvironment

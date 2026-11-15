@@ -162,6 +162,75 @@ def text_pdf(blank=False):
     return result+f'trailer\n<< /Size {len(offsets)} /Root 1 0 R >>\nstartxref\n{start}\n%%EOF'.encode()
 
 
+def assessment_bridge_tests(admin, other_org_client):
+    t = new_tenant(admin, "Synthetic assessment bridge")
+    base = f"/api/evidence/tenants/{t['id']}"
+    client, _ = invite(admin, t, "bridge-client@example.test")
+    staff = admin
+    years = [f"{y}-{y+1}" for y in range(2000,2099)]
+    data = ("Metric," + ','.join(years) + '\n' + '\n'.join(label+','+','.join([str(value)]*len(years)) for label,value in [
+        ('TOTAL REVENUE',1000),('TOTAL OPERATING EXPENSES',600),('ANNUAL DEBT SERVICE',200),('CLOSING RESERVE',50),('TOTAL UNITS',10),('TOTAL SOCIETY OPERATING EXPENSES',100),('TOTAL BUILDING OPERATING EXPENSES',500),('MORTGAGE PRINCIPAL PAYMENTS',150),('MORTGAGE INTEREST PAYMENTS',50),('SUBSIDY',50),('RENTAL REVENUE - ALL PROPERTY',800),('RENTAL REVENUE - NEW PROJECTS',100),('TOTAL OTHER INCOME',50)])).encode()
+    upload_result=upload(client,t,'synthetic-portfolio.csv',data)
+    version=upload_result['versionId']
+    admin.call(f"/api/evidence/versions/{version}/import",{})
+    filter={'source':version,'property':'CSV','period':'','status':'','search':''}
+    preview=admin.call(base+'/facts/review-all/preview',filter)
+    check(preview['matched']==1287 and preview['eligible']==0,'Review-all previews every page and blocks all unconfirmed source context')
+    client.call(base+'/facts/review-all/preview',filter,status=404)
+    other_org_client.call(base+'/facts/review-all/preview',filter,status=404)
+    check(True,'Bulk actions deny client roles and other organizations')
+    context={'filter':filter,'propertyId':'','basis':'Projection','currency':'CAD','scale':1,'periodOverride':'','yearConvention':'Keep ranges','reason':'Synthetic portfolio control checked in source','confirmed':True,'token':''}
+    plan=admin.call(base+'/facts/context-all',context)
+    admin.call(base+'/facts/context-all',{**context,'token':'stale'},status=400)
+    result=admin.call(base+'/facts/context-all',{**context,'token':plan['token']})
+    check(result['updated']==1287 and not result['blocked'],'One confirmed source context handles more than 200 rows and preserves all fiscal years')
+    filter['property']='__org'
+    preview=admin.call(base+'/facts/review-all/preview',filter)
+    check(preview['eligible']==1287,'All 1287 context-confirmed records become eligible without individual review clicks')
+    request={'filter':filter,'reason':'All synthetic controls reconciled to the original source','confirmed':True,'token':preview['token']}
+    admin.call(base+'/facts/review-all',{**request,'confirmed':False},status=400)
+    admin.call(base+'/facts/review-all',{**request,'token':'stale'},status=400)
+    review_started=time.perf_counter()
+    reviewed=admin.call(base+'/facts/review-all',request)
+    print(f'BULK REVIEW: {reviewed["eligible"]} records in {time.perf_counter()-review_started:.2f}s (local synthetic test)',flush=True)
+    check(reviewed['eligible']==1287 and all(f['status']=='Verified' for f in workspace(admin,t)['facts'] if f['status']!='Superseded'),'Review all verifies all pages with confirmation, stale-preview protection and preserved originals')
+    again=admin.call(base+'/facts/review-all/preview',filter)
+    check(again['eligible']==0 and again['reasons']['Already verified']==1287,'Repeated review is harmless and never mutates verified records')
+    case={'sourceVersionIds':[version],'basis':'Projection','currency':'CAD','currentYear':'2026-2027','targetCoverage':1.25,'reason':'Synthetic one-case portfolio assessment','confirmed':True}
+    cp=admin.call(base+'/assessments/preview',case)
+    check(cp['eligible']==1287 and len(cp['years'])==99,'Assessment preview selects verified inputs and fiscal horizons directly from the portal')
+    admin.call(base+'/assessments',{**case,'token':'stale'},status=400)
+    client.call(base+'/assessments/preview',case,status=404)
+    created=admin.call(base+'/assessments',{**case,'token':cp['token']})
+    path=f"/api/evidence/assessments/{created['id']}"
+    page=staff.call(path+'/pages/P3')
+    values={m['code']:m['value'] for m in page['currentMetrics']}
+    check(values['REVENUE']==1000 and values['OPEX']==600 and values['NOI']==400 and values['DSCR']==2 and values['CASH_AFTER_DEBT']==200,'Portal sign-in opens calculated V4 financial dashboards without a separate staff key or CSV upload')
+    option=staff.call(path+'/options/test',{'year':'2026-2027','case':'Base','kind':'Bridge','amount':50})
+    check(option['coverageAfter']==2 and option['noiAfter']==400 and option['debtServiceAfter']==200,'Portal option testing preserves financial inputs and uses the existing V4 method')
+    client.call(path+'/options/test',{'year':'2026-2027','case':'Base','kind':'Bridge','amount':50},status=404)
+    check(page['context']['organization']==t['name'] and not any('NGO' in str(row) for row in page['properties']),'Assessment uses the organization and blank method definitions, never example client data')
+    evidence=staff.call(path+'/metrics/'+next(m['id'] for m in page['currentMetrics'] if m['code']=='NOI')+'/evidence')
+    check(len(evidence['mappedFacts'])==2 and all(f['sourceId']==version and f['sourceLocation'].startswith('CSV!') for f in evidence['mappedFacts']),'Calculated results retain traceable original file version and cell references')
+    Client().call(path+'/pages/P3',status=401)
+    client.call(path+'/pages/P3',status=404)
+    other_org_client.call(path+'/pages/P3',status=404)
+    check(True,'Assessment pages deny anonymous, client-role and cross-organization access')
+    staff.call(path+'/configuration',{'currentYear':'2027-2028','expectedVersion':1},method='PUT',csrf=False,status=403)
+    staff.call(path+'/configuration',{'currentYear':'2027-2028','expectedVersion':1},method='PUT')
+    check(staff.call(path+'/pages/P1')['context']['currentYear']=='2027-2028','Portal assessment year selection uses CSRF and version checks')
+    check(any(a['id']==created['id'] for a in workspace(staff,t)['assessments']),'Created assessments can be reopened from their organization workspace')
+    # A pending alternative source cannot quietly enter the verified financial snapshot.
+    v2=upload(client,t,'synthetic-alternative.csv',data+b'\n')
+    admin.call(f"/api/evidence/versions/{v2['versionId']}/import",{})
+    c2={**case,'sourceVersionIds':[version,v2['versionId']]}
+    pp=admin.call(base+'/assessments/preview',c2)
+    check(pp['eligible']==1287 and pp['excluded']==1287,'An unreviewed alternative model is excluded rather than added to portfolio totals')
+    admin.call(f"/api/evidence/versions/{version}/unavailable",{'note':'Synthetic withdrawal test'})
+    staff.call(path+'/pages/P3',status=400)
+    check(True,'Withdrawing a source immediately blocks an existing portal assessment')
+
+
 def main():
     require_mfa = os.environ.get("EVIDENCE_TEST_REQUIRE_MFA", "false").lower() == "true"
     with tempfile.TemporaryDirectory(prefix="irei-evidence-test-") as folder:
@@ -386,6 +455,7 @@ def main():
             count=len(workspace(admin,a)['facts'])
             admin.call(f"/api/evidence/versions/{invalid['versionId']}/import",{},status=400)
             check(len(workspace(admin,a)['facts'])==count and next(v for v in workspace(admin,a)['versions'] if v['id']==invalid['versionId'])['extraction']['state']=='Extraction failed','Unreadable PDF records a persistent failure without partial facts or loss of source')
+            assessment_bridge_tests(admin, cb)
             # Internal test access is revoked immediately, including the current encrypted session.
             users = admin.call(f"/api/evidence/tenants/{a['id']}/users")
             user_id = next(u["id"] for u in users if u["email"] == "a@example.test")
