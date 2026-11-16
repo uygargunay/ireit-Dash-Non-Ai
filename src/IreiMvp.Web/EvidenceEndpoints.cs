@@ -24,31 +24,19 @@ public static class EvidenceEndpoints
                 context.Response.Headers.CacheControl = "no-store"; context.Response.Headers["X-Content-Type-Options"] = "nosniff"; context.Response.Headers["Referrer-Policy"] = "no-referrer";
                 context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'";
             }
-            // Internal workbooks remain staff-only. V2 also accepts the existing administrator session.
-            if (options.Enabled && path.StartsWithSegments("/api") && !path.StartsWithSegments("/api/evidence"))
-            { var key = context.RequestServices.GetRequiredService<IOptions<IreiOptions>>().Value.AdminKey;
-                var keyAuthorized = !string.IsNullOrWhiteSpace(key) && string.Equals(key, context.Request.Headers["X-Admin-Key"].FirstOrDefault(), StringComparison.Ordinal);
-                if (!keyAuthorized)
+            // V2 is intentionally open: no portal session, staff key or CSRF gate.
+            var v2 = path.StartsWithSegments("/api/submissions") || path.StartsWithSegments("/api/admin/submissions");
+            if (v2) context.Response.Headers.CacheControl = "no-store";
+            if (options.Enabled && path.StartsWithSegments("/api") &&
+                !path.StartsWithSegments("/api/evidence") && !v2)
+            {
+                var key = context.RequestServices.GetRequiredService<IOptions<IreiOptions>>().Value.AdminKey;
+                if (string.IsNullOrWhiteSpace(key) ||
+                    !string.Equals(key, context.Request.Headers["X-Admin-Key"].FirstOrDefault(), StringComparison.Ordinal))
                 {
-                    var security = context.RequestServices.GetRequiredService<EvidenceSecurity>();
-                    var v2 = path.StartsWithSegments("/api/submissions") || path.StartsWithSegments("/api/admin/submissions");
-                    var user = v2 && (context.Request.IsHttps || security.LocalHttp(context))
-                        ? await context.RequestServices.GetRequiredService<EvidenceStore>().Current(security.Session(context), context.RequestAborted)
-                        : null;
-                    if (user?.Role != "IreiAdmin")
-                    {
-                        context.Response.StatusCode = 403;
-                        await context.Response.WriteAsJsonAsync(new { error = "Sign in to the portal with an IREI administrator account, then return to V2 and retry.", code = "staff_sign_in_required" });
-                        return;
-                    }
-                    if (context.Request.Method is not ("GET" or "HEAD") && !security.ValidCsrf(context))
-                    {
-                        context.Response.StatusCode = 403;
-                        await context.Response.WriteAsJsonAsync(new { error = "Session confirmation expired. Retry the request to refresh it.", code = "csrf_required" });
-                        return;
-                    }
-                    context.Items["V2AdminAuthorized"] = true;
-                    context.Response.Headers.CacheControl = "no-store";
+                    context.Response.StatusCode = 403;
+                    await context.Response.WriteAsJsonAsync(new { error = "This workspace requires its staff access key." });
+                    return;
                 }
             }
             await next(context);

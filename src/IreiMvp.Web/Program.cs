@@ -278,7 +278,9 @@ public static class Program
 
     private static bool IsAdmin(HttpRequest request, IreiOptions options)
     {
-        if (request.HttpContext.Items["V2AdminAuthorized"] is true) return true;
+        // V2 downloads and the V2 workbook list follow the open V2 access mode.
+        if (request.Path.StartsWithSegments("/api/submissions") ||
+            request.Path.StartsWithSegments("/api/admin/submissions")) return true;
         var provided = request.Headers["X-Admin-Key"].FirstOrDefault();
         return !string.IsNullOrWhiteSpace(options.AdminKey) &&
                string.Equals(provided, options.AdminKey, StringComparison.Ordinal);

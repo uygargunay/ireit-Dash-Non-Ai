@@ -19,36 +19,21 @@ const path = require('node:path');
     page.on('request', request => {
       if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/submissions') uploads++;
     });
-    await page.locator('#submit-upload').click();
-    await page.locator('#staff-sign-in').waitFor({ state: 'visible' });
-    assert.match(await page.locator('#upload-error').innerText(), /Sign in/);
-    assert.equal(uploads, 0, 'An unsigned request must not transmit the workbook');
-    assert(await page.locator('#submit-upload').isEnabled());
-    assert.equal(await page.locator('#file-input').evaluate(el => el.files.length), 1);
-    assert.equal(await page.locator('#staff-sign-in a').getAttribute('target'), '_blank');
-
-    // Sign in in a second tab while the workbook remains selected in the first.
-    const login = await context.newPage();
-    await login.goto(process.env.EVIDENCE_TEST_URL + '/evidence.html');
-    await login.locator('#login input[name=email]').fill('admin@example.test');
-    await login.locator('#login input[name=password]').fill(process.env.EVIDENCE_TEST_PASSWORD);
-    await login.locator('#login button').click();
-    await login.locator('#workspace').waitFor({ state: 'visible' });
-    let stale = false;
-    await page.route('**/api/evidence/session', async route => {
-      const response = await route.fetch(); const body = await response.json();
-      if (body.authenticated && !stale) { stale = true; body.csrf = 'synthetic-expired-csrf'; }
-      await route.fulfill({ response, json: body });
+    let sessionRequests = 0;
+    await page.route('**/api/evidence/session', route => {
+      sessionRequests++;
+      return route.fulfill({ status: 403, contentType: 'application/json', body: '{"error":"No portal session"}' });
     });
-    const response = page.waitForResponse(r => new URL(r.url()).pathname === '/api/submissions' && r.request().method() === 'POST' && r.status() === 200);
+    const response = page.waitForResponse(r => new URL(r.url()).pathname === '/api/submissions' && r.request().method() === 'POST');
     await page.locator('#submit-upload').click();
     assert.equal((await response).status(), 200);
     await page.locator('#upload-dialog').waitFor({ state: 'hidden', timeout: 60000 });
-    assert.equal(uploads, 2, "One rejected request is refreshed and replayed once");
+    assert.equal(uploads, 1, "Anonymous V2 upload succeeds once");
+    assert.equal(sessionRequests, 0, "V2 never requests portal session confirmation");
     assert.match(await page.locator('#organization-chip').innerText(), /Synthetic browser V2 upload/);
     assert.equal(await page.locator('body').getAttribute('aria-busy'), 'false');
     assert.equal(errors.length, 0, errors.join('\n'));
-    console.log('V2 BROWSER: sign-in link, selected-file retention, cross-tab sign-in, authenticated Excel upload, dashboard render and cleared loading state passed.');
+    console.log('V2 BROWSER: anonymous Excel upload without a portal session, dashboard render and cleared loading state passed.');
   } finally {
     await browser.close();
   }

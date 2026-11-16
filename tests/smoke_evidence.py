@@ -279,34 +279,28 @@ def guided_report_tests(admin):
 def v2_session_tests(admin, client, analyst):
     anonymous = Client()
     for caller in (anonymous, client, analyst):
-        caller.call('/api/admin/submissions', status=403)
-        caller.call('/api/submissions', b'blocked', method='POST', status=403)
-    check(True, 'Anonymous, client and scoped analyst sessions cannot access the global V2 dashboard')
-    admin.call('/api/submissions', b'blocked', method='POST', csrf=False, status=403)
-    original_csrf = admin.csrf
-    admin.csrf = 'invalid-synthetic-token'
-    admin.call('/api/submissions', b'blocked', method='POST', status=403)
-    admin.csrf = original_csrf
-    check(True, 'V2 administrator cookie uploads require a matching session CSRF token')
+        caller.call('/api/admin/submissions')
+        caller.call('/api/submissions', b'invalid-not-an-excel-form', method='POST', csrf=False, status=400)
+    check(True, 'Open V2 skips authentication but retains file/form validation')
     boundary = 'v2-' + uuid.uuid4().hex
     source = ROOT / 'src/IreiMvp.Web/Data/Examples/IREI_MVP_Stage1_V2_NGOB_Demo.xlsx'
     data = (f'--{boundary}\r\nContent-Disposition: form-data; name="organizationName"\r\n\r\nSynthetic V2 Session Test\r\n'
             f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="synthetic-v2.xlsx"\r\n'
             'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\r\n').encode() + source.read_bytes() + f'\r\n--{boundary}--\r\n'.encode()
     request = urllib.request.Request(BASE + '/api/submissions', data=data, headers={
-        'Content-Type': 'multipart/form-data; boundary=' + boundary, 'X-CSRF-Token': admin.csrf})
-    with admin.opener.open(request, timeout=60) as response:
+        'Content-Type': 'multipart/form-data; boundary=' + boundary})
+    with anonymous.opener.open(request, timeout=60) as response:
         submission = json.load(response)
     check(submission['versionStatus'] == 'Working' and submission['dashboard']['totalProperties'] > 0,
-          'Existing portal administrator uploads a real V2 workbook without an admin key')
+          'Anonymous V2 upload works without a cookie, key or CSRF token')
     path = '/api/submissions/' + submission['id']
-    check(admin.call(path)['id'] == submission['id'], 'Administrator session reopens the uploaded V2 assessment')
-    check(any(s['id'] == submission['id'] for s in admin.call('/api/admin/submissions')),
-          'Administrator session can list V2 assessments')
+    check(anonymous.call(path)['id'] == submission['id'], 'Anonymous V2 reopens the uploaded V2 assessment')
+    check(any(s['id'] == submission['id'] for s in anonymous.call('/api/admin/submissions')),
+          'Anonymous V2 can list V2 assessments')
     output = '/api/admin/submissions/' + submission['id'] + '/output'
-    check(admin.call(output, raw=True).startswith(b'PK'), 'Administrator session downloads the generated V2 Excel workbook')
-    client.call(path, status=403)
-    analyst.call(output, status=403)
+    check(anonymous.call(output, raw=True).startswith(b'PK'), 'Anonymous V2 downloads the generated V2 Excel workbook')
+    client.call(path)
+    analyst.call(output, raw=True)
     request = urllib.request.Request(BASE + '/api/admin/submissions', headers={'X-Admin-Key': 'synthetic-v2-test-key'})
     with urllib.request.urlopen(request, timeout=60) as response:
         check(response.status == 200, 'Existing explicit staff-key integrations still work')
@@ -399,8 +393,8 @@ def main():
             ca.call('/api/evidence/downloads', {"tenantId": a["id"], "versionIds": [sensitive["versionId"]], "categoryId": "", "propertyId": "", "reportingPeriod": "", "archive": False}, status=400)
             check(True, "Quarantined source bytes are inaccessible even to the uploader")
             ca.call(f"/api/evidence/tenants/{a['id']}/facts.csv", status=404)
-            ca.call('/api/submissions', status=403, raw=True)
-            check(True, "Client cannot retrieve internal underwriting exports or legacy APIs")
+            ca.call('/api/submissions', b'invalid-form', method='POST', csrf=False, status=400)
+            check(True, "Client portal exports remain protected; V2 retains its separately open access mode")
             ca.call('/api/evidence/downloads', {"tenantId": a["id"], "versionIds": [version["id"]], "categoryId": "", "propertyId": "", "reportingPeriod": "", "archive": True}, status=404)
             check(True, "Clients cannot generate internal source archives")
             p1 = admin.call(f"/api/evidence/tenants/{a['id']}/properties", {"scopeId":"organization","clientPropertyId":"P1","name":"Property one","evidenceVersionId":version['id'],"locator":"page 1","reportingPeriod":"FY2026"})
