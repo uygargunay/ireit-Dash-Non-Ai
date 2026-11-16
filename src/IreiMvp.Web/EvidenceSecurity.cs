@@ -77,6 +77,9 @@ public sealed class EvidenceSecurity(IOptions<EvidenceOptions> options, IWebHost
     public EvidenceSession? Session(HttpContext c) => Unprotect<EvidenceSession>(c.Request.Cookies["irei-evidence"], "session") is { } session && session.Expires > DateTimeOffset.UtcNow ? session : null;
     public string Preauth(HttpContext c)
     {
+        // Multiple tabs/session checks must not invalidate an unexpired sign-in token.
+        var existing = Unprotect<EvidenceSession>(c.Request.Cookies["irei-evidence-csrf"], "csrf");
+        if (existing?.Expires > DateTimeOffset.UtcNow) return existing.Csrf;
         var token = Token(); Set(c, "irei-evidence-csrf", Protect(new EvidenceSession("", 0, DateTimeOffset.UtcNow.AddMinutes(10), token), "csrf"), 10); return token;
     }
     public void SignIn(HttpContext c, EvidenceUser u)

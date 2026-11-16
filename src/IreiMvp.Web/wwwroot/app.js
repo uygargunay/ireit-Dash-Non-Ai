@@ -798,9 +798,9 @@ async function reloadSubmission() {
   setSubmission(submission);
 }
 
-async function staffFetch(url, options = {}) {
+async function staffFetch(url, options = {}, retryCsrf = true) {
   const headers = new Headers(options.headers);
-  const sessionResponse = await fetch("/api/evidence/session", { cache: "no-store" });
+  const sessionResponse = await fetch("/api/evidence/session", { cache: "no-store", credentials: "same-origin" });
   if (sessionResponse.ok && (sessionResponse.headers.get("content-type") || "").includes("json")) {
     const session = await sessionResponse.json();
     if (!session.authenticated || session.profile?.role !== "IreiAdmin") {
@@ -816,7 +816,19 @@ async function staffFetch(url, options = {}) {
   } else if (!sessionResponse.ok && sessionResponse.status !== 404) {
     throw new Error("Could not check your sign-in. Please retry.");
   }
-  return fetch(url, { ...options, headers });
+  const response = await fetch(url, { ...options, credentials: "same-origin", headers });
+  // Retry only an explicit CSRF rejection issued before the handler can mutate state.
+  if (response.status === 403) {
+    const rejected = await response.clone().json().catch(() => ({}));
+    if (rejected.code === "csrf_required") {
+      if (retryCsrf) return staffFetch(url, options, false);
+      document.getElementById("staff-sign-in").classList.remove("hidden");
+      const error = new Error("Your sign-in could not be confirmed. Sign out of the portal and sign back in in another tab, then retry. Your selected workbook has been kept.");
+      error.requiresStaffSignIn = true;
+      throw error;
+    }
+  }
+  return response;
 }
 
 async function api(url, options = {}) {
