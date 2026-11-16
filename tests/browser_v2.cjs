@@ -34,11 +34,17 @@ const path = require('node:path');
     await login.locator('#login input[name=password]').fill(process.env.EVIDENCE_TEST_PASSWORD);
     await login.locator('#login button').click();
     await login.locator('#workspace').waitFor({ state: 'visible' });
-    const response = page.waitForResponse(r => new URL(r.url()).pathname === '/api/submissions' && r.request().method() === 'POST');
+    let stale = false;
+    await page.route('**/api/evidence/session', async route => {
+      const response = await route.fetch(); const body = await response.json();
+      if (body.authenticated && !stale) { stale = true; body.csrf = 'synthetic-expired-csrf'; }
+      await route.fulfill({ response, json: body });
+    });
+    const response = page.waitForResponse(r => new URL(r.url()).pathname === '/api/submissions' && r.request().method() === 'POST' && r.status() === 200);
     await page.locator('#submit-upload').click();
     assert.equal((await response).status(), 200);
     await page.locator('#upload-dialog').waitFor({ state: 'hidden', timeout: 60000 });
-    assert.equal(uploads, 1);
+    assert.equal(uploads, 2, "One rejected request is refreshed and replayed once");
     assert.match(await page.locator('#organization-chip').innerText(), /Synthetic browser V2 upload/);
     assert.equal(await page.locator('body').getAttribute('aria-busy'), 'false');
     assert.equal(errors.length, 0, errors.join('\n'));

@@ -109,6 +109,8 @@ def main():
                 except OSError:
                     if server.poll() is not None:raise RuntimeError(Path(folder,'server.log').read_text())
                     time.sleep(.1)
+            first_token=admin.csrf;admin.session()
+            check(admin.csrf==first_token,'Refreshing anonymous session checks preserves an unexpired sign-in confirmation token')
             admin.call('/api/evidence/login',{'email':'admin@example.test','password':portal.PASSWORD,'totp':''});admin.session()
             anonymous=portal.Client()
             fixture=(ROOT/'src/IreiMvp.Web/Data/Examples/IREI_Stage1_V4.2_NGOB_Real_Data_Test.xlsx').read_bytes()
