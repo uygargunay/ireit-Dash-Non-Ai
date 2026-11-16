@@ -1,11 +1,11 @@
 # V2 board dashboard
 
-The root workspace `/` now presents seven views matching the supplied visual structure: Executive Summary, Portfolio & Mission, Financial & Debt, Evidence, Risk & Options, Updates & Actions, and Reports. The original eight-page application remains at `/legacy-v2.html`, with its prior APIs and stored records unchanged.
+The root workspace `/` now presents seven views based on the supplied visual structure: Executive Summary, Portfolio & Mission, Financial & Debt, Evidence, Risk & Options, Updates & Actions, and Reports. The original eight-page application remains at `/legacy-v2.html`, with its prior APIs and stored records unchanged.
 
 ## Upload and present
 
 1. Open `/` directly. V2 requires no sign-in, access key or session confirmation.
-2. Open `/`, select **Upload / Update**, and choose a populated V4.2 assessment, one original cash-flow model, or a mapped V4.2 assessment together with its source workbook(s).
+2. Open `/`, select **Upload / Update**, and choose a populated V4.2 assessment, one original cash-flow model with optional supporting tables, or a mapped V4.2 assessment together with its source workbook(s) and supporting property table.
 3. Leave the reporting year blank to retain the mapped workbook's selected year. Original-model intake selects the current April–March fiscal year when it falls within the source horizon. The year control can change the view after upload.
 4. Select **Present** to hide the toolbar. Escape restores it. Every metric and View details control remains usable.
 5. On Reports, use **Print all pages / Save PDF** to print the complete seven-view internal draft, or download the complete analysis record as JSON.
@@ -48,7 +48,9 @@ Ratios just below 1.0× display three decimal places so 0.99584× does not false
 
 ## What the uploaded files cannot establish
 
-Some values in the reference images come from an older property summary that is **not** among the two supplied workbooks. Most historical per-building unit counts, cities, specific dated mortgage renewals and historical principal balances cannot be reproduced from these files alone. They remain unavailable or unestablished. The dashboard never copies numbers from a screenshot into source data. The existing mapped source contains some historical name/address aliases, which remain provenance rather than extra properties.
+The reference images combine V18/V4.2 financial controls with an older property summary. Upload that supporting summary in the same batch as the controlling financial assessment. Labeled tabular supporting sources can supply historical listed units, cities, addresses, loan balances and maturity dates. Recognized column labels include Property name/ID, Units, City, Address, Maturity date, Loan balance and Source date. Exact unique property names, IDs and explicit alias fields match existing property IDs. Unmatched names, duplicate aliases or ambiguous headers produce import findings and never create new buildings. Unrecognized workbook layouts are retained with an explicit mapping finding.
+
+Historical observations retain their file SHA, cell address and supplied date, separately from current financial facts. Conflicting historical values appear as conflicts, not a chosen value. Historical dates are not current renewal outcomes, listed units are not occupied homes, and historical loan balances are not annual debt service. A source date is never invented from the upload date. Previously saved records require a new upload to incorporate an additional source.
 
 Actual rent rolls, household affordability, current occupied homes, resident outcomes, current condition reports and reserve-use permissions are also unconfirmed. A historical supporting source or a modeled rent assumption does not establish them. Property-level payment reconciliation and sign concerns remain visible even when portfolio coverage can be calculated.
 
@@ -72,3 +74,10 @@ python tests/smoke_board.py
 ```
 
 `BOARD_RAW_WORKBOOK` optionally points to the supplied original V18 file for paired-source and original-only tests. `BOARD_BROWSER_TEST=1` enables the end-to-end browser regression; `PLAYWRIGHT_MODULE` and `EVIDENCE_CHROME` can specify local installed test dependencies. Browser checks cover real uploads, anonymous upload without session requests and file retention, all seven layouts, evidence/property drill-through, action persistence, option testing, print output and mobile widths.
+
+
+## Reference-layout correction
+
+The financial page uses the compact three-column options summary, with the full five-column comparison on Risks & Options. The executive summary retains visible stewardship captions and prioritizes current cash, renewals, full-operation coverage and subsidy dependency. Updates only displays a separate management-action table when records exist. Evidence questions prefer the actual client question over a category label. Browser assets have a new cache version.
+
+Validation limits for this revision: JavaScript syntax and isolated renderer checks can be run without a browser. The .NET tests include mapped-reference summary counts and synthetic historical-source failure cases. The actual property-summary layout and live pixel comparison still need runtime validation; these changes do not establish an exact visual match.

@@ -82,6 +82,39 @@ var confirmed = Test(new("2029-2030", "Without placeholder", "Confirm subsidy", 
 Near(confirmed.GetProperty("ResidualCashShortfall").GetDecimal(), 57113.97156585194m, "Subsidy confirmation restores once");
 var baseConfirm = Test(new("2029-2030", "Base", "Confirm subsidy", 0m, SubsidyConfirmed: true));
 Near(baseConfirm.GetProperty("Amount").GetDecimal(), 0m, "Subsidy confirmation never adds to base plan");
+// Board projections must preserve the mapped controls and presentation summary.
+var boardProjection = JsonSerializer.SerializeToElement(BoardView.Build(new BoardRecord { Assessment = a }));
+var boardSummary = boardProjection.GetProperty("Summary");
+Check(boardSummary.GetProperty("Buildings").GetInt32() == 16 && boardSummary.GetProperty("Operating").GetInt32() == 12 &&
+    boardSummary.GetProperty("Planned").GetInt32() == 4, "Board property scope matches reference");
+Check(boardSummary.GetProperty("Open").GetInt32() == 16 && boardSummary.GetProperty("BelowOne").GetInt32() == 2 &&
+    boardSummary.GetProperty("ForwardPeriods").GetInt32() == 9, "Board exception and forward-risk counts match reference");
+Check(boardSummary.GetProperty("CurrentYear").GetString() == "2026-2027", "Board retains mapped FY27 selection");
+var supportingCase = new V4Assessment { OrganizationId = "SYNTHETIC-ORG", Registers = new() {
+    ["31_PROPERTY"] = [
+        new("SYNTHETIC-A", "31_PROPERTY", 0, new() { ["Property_Name"] = "Example House", ["Include_in_Assessment"] = "Yes" }, []),
+        new("SYNTHETIC-B", "31_PROPERTY", 0, new() { ["Property_Name"] = "Duplicate alias", ["Include_in_Assessment"] = "Yes" }, []),
+        new("SYNTHETIC-C", "31_PROPERTY", 0, new() { ["Property_Name"] = "Duplicate alias", ["Include_in_Assessment"] = "Yes" }, [])
+    ] } };
+var historicalBook = new WorkbookSnapshot { Sha256 = new string('a', 64), Sheets = new() { ["History"] = new() {
+    Name = "History", MaxRow = 5, MaxColumn = 6, Cells = new() {
+        ["A1"] = new() { Value = "Property name" }, ["B1"] = new() { Value = "Units" }, ["C1"] = new() { Value = "City" },
+        ["D1"] = new() { Value = "Maturity date" }, ["E1"] = new() { Value = "Loan balance" }, ["F1"] = new() { Value = "Source date" },
+        ["A2"] = new() { Value = "Example House" }, ["B2"] = new() { Value = 27m }, ["C2"] = new() { Value = "Example City" },
+        ["D2"] = new() { Value = 46200m }, ["E2"] = new() { Value = 125000m }, ["F2"] = new() { Value = "2025-08-20" },
+        ["A3"] = new() { Value = "Unknown property" }, ["B3"] = new() { Value = 999m },
+        ["A4"] = new() { Value = "Duplicate alias" }, ["B4"] = new() { Value = 42m },
+        ["A5"] = new() { Value = "SYNTHETIC-A" }, ["B5"] = new() { Value = 0m }
+    } } } };
+var historicalFindings = new List<string>();
+var historical = BoardSupportingImporter.Read(supportingCase, historicalBook, "history.xlsx", historicalFindings);
+Check(historical.Count == 2 && historical.All(r => r.Text("Property_ID") == "SYNTHETIC-A"), "Historical rows match one existing property by exact name or ID");
+Check(historical[0].Text("Units") == "27" && historical[1].Text("Units") == "0", "Historical blanks and numeric zero remain distinct");
+Check(historical[0].Text("Date") == "2025-08-20" && historical[0].Text("Units_Source") == "'History'!B2" &&
+    historical[0].Text("Maturity").Length == 10, "Historical dates and cell lineage retained");
+Check(historicalFindings.Count == 2 && supportingCase.Rows("31_PROPERTY").Count() == 3 && supportingCase.Facts.Count == 0,
+    "Unknown or ambiguous aliases cannot create buildings, occupied homes or financial facts");
+Check(!BoardSupportingImporter.IsCashFlow(historicalBook), "Supporting property table cannot become the financial control");
 var originalDebt = M("DEBT_SERVICE");
 a.Facts.Add(new("SECOND-DEBT", "PROP-MM", "2026-2027", "Projection", "DEBT_SERVICE", 999999m, "Available", "Property detail", "Under review", "Unmapped", "", "CAD", "TEST", "Test", "Test!A1", "", []));
 V4CalculationEngine.Calculate(a); Near(M("DEBT_SERVICE"), originalDebt!.Value, "Property debt cannot change portfolio debt");

@@ -48,7 +48,7 @@ public static class BoardView
         proposals.Add(new("P-RULES", "Set mission and reserve rules", "Limits unconfirmed", "Board", "Before financing approval", "RESERVE-PERMISSION"));
         if (M("SHORTFALL_EX_PLACEHOLDER", full)?.Value > 0) proposals.Add(new("P-FALLBACK", "Test no-subsidy fallback", F("SHORTFALL_EX_PLACEHOLDER", full) + " cash need", "CFO / board", "Annual FY" + full[^2..] + " sensitivity", "SUBSIDY"));
         var additional = open.Select(r => new BoardProposal(r.Id,
-            r.Text("Exception_Type").Length > 0 ? "Review: " + r.Text("Exception_Type") : r.Text("Issue_Type").Length > 0 ? r.Text("Issue_Type") : r.Text("Plain_Question"),
+            r.Text("Plain_Question").Length > 0 ? r.Text("Plain_Question") : r.Text("Question_For_Client").Length > 0 ? r.Text("Question_For_Client") : r.Text("Exception_Type").Length > 0 ? "Review: " + r.Text("Exception_Type") : r.Text("Issue_Type"),
             "Evidence required", r.Text("Who_Answers").Length > 0 ? r.Text("Who_Answers") : r.Text("Suggested_Respondent").Length > 0 ? r.Text("Suggested_Respondent") : "CFO / management", "Before related commitments", r.Id)).ToArray();
         var missing = new[] {
             new { Area = "Affordability", Sheet = "37_UNIT_RENT", Required = "Actual rent rolls and household affordability evidence", Unlocks = "Rent levels, affordability and protected homes" },
@@ -80,6 +80,8 @@ public static class BoardView
             Proposals = proposals, ProposedTracker = proposals.Concat(additional),
             Missing = missing, Options = options, Checks = record.Checks,
             Sources = record.Sources.Select(s => new { s.Name, s.Sha256, s.Kind }),
+            HistoricalProperties = record.HistoricalProperties,
+            ControllingSource = record.Sources.FirstOrDefault(s => s.Kind == "Mapped assessment") ?? record.Sources.FirstOrDefault(s => s.Kind == "Original source model"),
             Summary = new { CurrentYear = year, FullYear = full, Buildings = properties.Length,
                 Operating = properties.Count(p => !p.Text("Operating_Status").StartsWith("Planned", StringComparison.OrdinalIgnoreCase)), Planned = plannedIds.Count,
                 ExistingHomes = firstHomes?.Value, PlannedHomes = M("HOMES_TOTAL", allYears.LastOrDefault())?.Value, PlannedBy = plateau,
@@ -88,8 +90,10 @@ public static class BoardView
                 NewPayments = newPaymentTotal, NewPaymentsState = "Source annual payment aggregates; not verified instruments", RentRollState = a.Rows("37_UNIT_RENT").Any() ? "Review records" : "Not received",
                 SourceDocuments = a.Rows("10_SOURCE_REGISTER").Count(), UploadedFiles = record.Sources.Count,
                 ReserveBreaks = reserveBreaks.Length, CheckPass = record.Checks.Count(c => c.State == "Pass"), CheckReview = record.Checks.Count(c => c.State == "Review required"), CheckMissing = record.Checks.Count(c => c.State == "Not testable"),
-                Cities = properties.Select(p => p.Text("City")).Where(s => s.Length > 0).Distinct(),
-                HistoricalDetailState = "Only values present in the uploaded records are shown. Historical values in reference images are not input data.",
+                Cities = properties.Select(p => p.Text("City")).Concat(record.HistoricalProperties.GroupBy(r => r.Text("Property_ID"))
+                    .Where(g => g.Select(r => r.Text("City")).Where(c => c.Length > 0).Distinct().Count() == 1)
+                    .Select(g => g.First(r => r.Text("City").Length > 0).Text("City"))).Where(s => s.Length > 0).Distinct(),
+                HistoricalDetailState = record.HistoricalProperties.Count > 0 ? "Historical supporting observations retain their file, cell and source date. They do not establish current occupancy or lender terms." : "Historical property summary not mapped. Upload its table alongside the financial workbook to populate listed units, locations and historical loan records.",
                 DisplayYears = allYears.Where(y => M("DEBT_SERVICE", y)?.Value.HasValue == true).ToArray() },
             Formatted = new { ResidualAnnual = Annual(M("CASH_SHORTFALL", full)?.Value), PlaceholderAnnual = F("PLACEHOLDER_SUBSIDY", full),
                 FallbackAnnual = F("SHORTFALL_EX_PLACEHOLDER", full), NewPayments = Money(newPaymentTotal), Target = WorkbookValue.Decimal(a.Setting("TARGET_COVERAGE"))?.ToString("0.00", CultureInfo.InvariantCulture) + "x" }

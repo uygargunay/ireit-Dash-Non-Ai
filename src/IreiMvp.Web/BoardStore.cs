@@ -14,6 +14,7 @@ public sealed class BoardRecord
     public V4Assessment Assessment { get; set; } = new();
     public List<BoardSource> Sources { get; set; } = [];
     public List<BoardCheck> Checks { get; set; } = [];
+    public List<V4Row> HistoricalProperties { get; set; } = [];
 }
 public sealed class BoardStore(BoardWorkbookImporter importer, XlsxWorkbookService xlsx,
     IWebHostEnvironment environment, IOptions<IreiOptions> options)
@@ -49,14 +50,15 @@ public sealed class BoardStore(BoardWorkbookImporter importer, XlsxWorkbookServi
                 var file = files[i]; var stored = $"source-{i + 1}.xlsx"; var path = Path.Combine(folder, stored);
                 await using (var output = File.Create(path)) await file.CopyToAsync(output, ct);
                 var snapshot = xlsx.Read(path); snapshots.Add(snapshot);
-                var kind = snapshot.HasSheet("02_DISPLAY_CONFIG") && snapshot.HasSheet("57_OPTION_ANALYSIS") ? "Mapped assessment" : "Original source model";
+                var kind = snapshot.HasSheet("02_DISPLAY_CONFIG") && snapshot.HasSheet("57_OPTION_ANALYSIS") ? "Mapped assessment" : BoardSupportingImporter.IsCashFlow(snapshot) ? "Original source model" : "Supporting property source";
                 if (sources.Any(s => s.Sha256 == snapshot.Sha256)) throw new InvalidDataException("The same workbook was selected more than once. Remove duplicate files and retry.");
                 sources.Add(new(Path.GetFileName(file.FileName), stored, snapshot.Sha256, kind));
             }
             var mapped = sources.Select((s, i) => (s, i)).Where(x => x.s.Kind == "Mapped assessment").ToArray();
-            if (mapped.Length > 1 || mapped.Length == 0 && sources.Count > 1)
-                throw new InvalidDataException("Choose one controlling mapped assessment with optional source workbooks, or one original cash-flow model. Multiple competing primary workbooks require a source-authority decision.");
-            var primary = mapped.Length == 1 ? mapped[0].i : 0;
+            var originals = sources.Select((s, i) => (s, i)).Where(x => x.s.Kind == "Original source model").ToArray();
+            if (mapped.Length > 1 || mapped.Length == 0 && originals.Length != 1)
+                throw new InvalidDataException("Choose one controlling mapped assessment with optional source workbooks, or one original cash-flow model with optional supporting property tables. Multiple competing primary workbooks require a source-authority decision.");
+            var primary = mapped.Length == 1 ? mapped[0].i : originals[0].i;
             var a = importer.Read(Path.Combine(folder, sources[primary].StoredName), id, sources[primary].Name, organization, currentYear);
             if (!string.IsNullOrWhiteSpace(organization)) a.Organization = organization.Trim();
             if (!string.IsNullOrWhiteSpace(currentYear))
@@ -67,6 +69,9 @@ public sealed class BoardStore(BoardWorkbookImporter importer, XlsxWorkbookServi
             V4CalculationEngine.Calculate(a);
             a.Baseline = new("BASE-" + id, a.AssessmentId, a.OrganizationId, a.CreatedUtc, a.Setting("CURRENT_FISCAL_YEAR"), a.Setting("PORTFOLIO_PROPERTY_ID"), a.MethodologyVersion, a.Metrics.ToArray());
             var record = new BoardRecord { Assessment = a, Sources = sources };
+            for (var i = 0; i < sources.Count; i++)
+                if (sources[i].Kind == "Supporting property source")
+                    record.HistoricalProperties.AddRange(BoardSupportingImporter.Read(a, snapshots[i], sources[i].Name, a.ImportFindings));
             record.Checks = Checks(a, snapshots, sources, primary);
             await Save(record, ct); return record;
         }
