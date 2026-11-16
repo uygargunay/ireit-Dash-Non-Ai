@@ -10,7 +10,7 @@ const path = require('node:path');
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
-    await page.goto(process.env.EVIDENCE_TEST_URL + '/');
+    await page.goto(process.env.EVIDENCE_TEST_URL + '/legacy-v2.html');
     await page.locator('#open-upload').click();
     await page.locator('#organization-name').fill('Synthetic browser V2 upload');
     const workbook = path.resolve('src/IreiMvp.Web/Data/Examples/IREI_MVP_Stage1_V2_NGOB_Demo.xlsx');

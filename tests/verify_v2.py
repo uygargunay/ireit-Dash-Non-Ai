@@ -106,7 +106,7 @@ def read(path: Path) -> str:
 
 
 def check_application() -> None:
-    index = read(WEB / "wwwroot" / "index.html")
+    index = read(WEB / "wwwroot" / "legacy-v2.html")
     app = read(WEB / "wwwroot" / "app.js")
     program = read(WEB / "Program.cs")
     settings = read(WEB / "appsettings.json")

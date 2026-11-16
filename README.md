@@ -1,10 +1,12 @@
 # IREI Stage 1 — Non-AI
 
+> V2 board dashboard: `/` provides seven visual portfolio, financial, evidence and decision views from uploaded mapped assessments and original cash-flow models. See [upload, presentation, calculations and deployment](docs/V2-BOARD-DASHBOARD.md). The original eight-page V2 workspace remains at `/legacy-v2.html`.
+
 > Phase 2 evidence portal: `/evidence.html` provides invitation-based client uploads, XLSX/CSV and text-PDF extraction, a draft data preview, guided preparation from zero verified records, bulk context/review, printable internal draft reports and direct working V4 assessments and frozen client-signoff snapshots. See the [upload and preview guide](docs/EVIDENCE-QUICK-START.md). Disabled by default; see [setup, security gates and boundaries](docs/PHASE2-EVIDENCE-PORTAL.md).
 
 > V4.2 underwriting pilot: open `/v4.html`. See [implementation and deployment](docs/V4-IMPLEMENTATION.md) and [calculation validation](docs/V4-VALIDATION.md). The seven-page workspace uses the finalized V4.2 template and server-side calculations, with source evidence, shared review records and baseline/outcome tracking. Enter the configured pilot access key before importing a workbook. Production approval and external report release remain blocked.
 
-> V3.1 financial pilot: see [the V3 implementation and handoff](docs/V3-IMPLEMENTATION.md). Open `/v3.html` to import the current customer or internal template. The original V2 workflow remains available at `/`.
+> V3.1 financial pilot: see [the V3 implementation and handoff](docs/V3-IMPLEMENTATION.md). Open `/v3.html` to import the current customer or internal template. The original V2 workflow remains available at `/legacy-v2.html`.
 
 This ASP.NET Core 8 application turns an uploaded organization workbook into a private, eight-page portfolio stewardship dashboard and a standardized IREI workbook.
 
