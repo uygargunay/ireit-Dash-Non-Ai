@@ -1,40 +1,27 @@
-const keyInput = document.getElementById("admin-key");
 const loadButton = document.getElementById("load-submissions");
 const list = document.getElementById("admin-list");
 const errorBox = document.getElementById("admin-error");
 
-keyInput.value = localStorage.getItem("irei-admin-key") || "";
+localStorage.removeItem("irei-admin-key");
 
 loadButton.addEventListener("click", loadSubmissions);
-keyInput.addEventListener("keydown", event => {
-  if (event.key === "Enter") loadSubmissions();
-});
 
 async function loadSubmissions() {
-  const key = keyInput.value.trim();
-  if (!key) {
-    showError("Enter the admin key.");
-    return;
-  }
-
-  localStorage.setItem("irei-admin-key", key);
   hideError();
   loadButton.disabled = true;
   loadButton.textContent = "Loading…";
 
   try {
     const response = await fetch("/api/admin/submissions", {
-      headers: { "X-Admin-Key": key }
+      credentials: "omit"
     });
 
     if (!response.ok) {
-      throw new Error(response.status === 401
-        ? "The admin key is not valid."
-        : "Could not load submissions.");
+      throw new Error("Could not load submissions.");
     }
 
     const records = await response.json();
-    render(records, key);
+    render(records);
   } catch (error) {
     showError(error.message);
   } finally {
@@ -43,7 +30,7 @@ async function loadSubmissions() {
   }
 }
 
-function render(records, key) {
+function render(records) {
   if (!records.length) {
     list.className = "admin-list empty-state";
     list.textContent = "No submissions have been processed.";
@@ -63,17 +50,17 @@ function render(records, key) {
           <span>${record.warnings?.length || 0} warning(s)</span>
         </div>
       </div>
-      <button type="button" class="button secondary" data-download="${record.id}">Download private workbook</button>
+      <button type="button" class="button secondary" data-download="${record.id}">Download workbook</button>
     </article>
   `).join("");
 
   list.querySelectorAll("[data-download]").forEach(button => {
     button.addEventListener("click", () =>
-      downloadWorkbook(button.dataset.download, key, button));
+      downloadWorkbook(button.dataset.download, button));
   });
 }
 
-async function downloadWorkbook(id, key, button) {
+async function downloadWorkbook(id, button) {
   const original = button.textContent;
   button.disabled = true;
   button.textContent = "Preparing…";
@@ -81,7 +68,7 @@ async function downloadWorkbook(id, key, button) {
   try {
     const response = await fetch(
       `/api/admin/submissions/${encodeURIComponent(id)}/output`,
-      { headers: { "X-Admin-Key": key } }
+      { credentials: "omit" }
     );
 
     if (!response.ok) {

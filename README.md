@@ -8,7 +8,7 @@
 
 > V3.1 financial pilot: see [the V3 implementation and handoff](docs/V3-IMPLEMENTATION.md). Open `/v3.html` to import the current customer or internal template. The original V2 workflow remains available at `/legacy-v2.html`.
 
-This ASP.NET Core 8 application turns an uploaded organization workbook into a private, eight-page portfolio stewardship dashboard and a standardized IREI workbook.
+This ASP.NET Core 8 application turns an uploaded organization workbook into a portfolio stewardship dashboard and a standardized IREI workbook.
 
 The non-AI edition is deterministic. It does not call an AI service, infer investor recommendations, create a 100-point readiness score, or silently fill missing evidence. Unsupported or absent fields are shown as **Not assessed** and retained for human review.
 
@@ -55,13 +55,13 @@ Open:
 - Admin workbook list: `http://localhost:5078/admin.html`
 - Health: `http://localhost:5078/health`
 
-No admin key is committed to source control. Set `Irei__AdminKey` in the process environment before using private workbook or approved-report downloads. Keep the value out of URLs, logs and committed configuration.
+V2 uploads, assessment links, workbook lists and generated workbook/report downloads require no sign-in, key or session confirmation. `Irei__AdminKey` remains relevant to the separate V3/V4/intake workspaces. No key is committed to source control.
 
-### V2 uploads when the evidence portal is enabled
+### Open V2 access
 
-Sign in at `/evidence.html` with an `IreiAdmin` account, then open `/` and upload your Excel workbook. V2 uses the existing administrator session and refreshes its CSRF token before each request. If sign-in is needed, the upload dialog links to the portal in another tab and keeps the selected workbook so you can return and retry.
+Open `/` or `/legacy-v2.html` and upload the Excel workbooks directly. V2 does not contact the portal session endpoint and sends no portal cookies or confirmation tokens. The V2 workbook list and download screen at `/admin.html` also require no key.
 
-Client and scoped analyst accounts cannot use V2's global assessment APIs. Explicit `X-Admin-Key` integrations remain supported; V3, V4 and intake keep their existing access controls. When the portal is disabled, the standalone V2 upload workflow is unchanged.
+V2 assessment URLs and its submission register are accessible without signing in. The separate evidence portal retains authentication, roles and CSRF protection; V3, V4 and intake keep their existing key requirements.
 
 ## Docker
 
@@ -88,7 +88,7 @@ App_Data/
       Reports/<report-id>.xlsx
 ```
 
-Only safe public view models are returned by participant APIs. Server filesystem paths are not included. Generated V2 assessment and approved-report downloads require either the configured `X-Admin-Key` header or an active `IreiAdmin` portal session when the portal is enabled.
+Only safe public view models are returned by participant APIs. Server filesystem paths are not included. V2 assessment and report downloads are open without authentication, including when the evidence portal is enabled.
 
 ## Verification
 

@@ -721,15 +721,9 @@ async function shareReport(id) {
 async function downloadReport(id) {
   setBusy(true);
   try {
-    let response = await staffFetch(`/api/submissions/${encodeURIComponent(state.submission.id)}/reports/${encodeURIComponent(id)}/download`);
-    // Standalone deployments retain their existing key-based report downloads.
-    if (response.status === 401) {
-      const key = prompt("Authorized download key");
-      if (!key) return;
-      response = await fetch(`/api/submissions/${encodeURIComponent(state.submission.id)}/reports/${encodeURIComponent(id)}/download`, { headers: { "X-Admin-Key": key } });
-    }
+    const response = await staffFetch(`/api/submissions/${encodeURIComponent(state.submission.id)}/reports/${encodeURIComponent(id)}/download`);
     if (!response.ok) {
-      throw new Error(response.status === 401 ? "The authorization key is not valid." : "The report could not be downloaded.");
+      throw new Error("The report could not be downloaded.");
     }
     const blob = await response.blob();
     const filename = downloadFilename(response.headers.get("content-disposition"), `IREI-${id}.xlsx`);
@@ -798,37 +792,9 @@ async function reloadSubmission() {
   setSubmission(submission);
 }
 
-async function staffFetch(url, options = {}, retryCsrf = true) {
-  const headers = new Headers(options.headers);
-  const sessionResponse = await fetch("/api/evidence/session", { cache: "no-store", credentials: "same-origin" });
-  if (sessionResponse.ok && (sessionResponse.headers.get("content-type") || "").includes("json")) {
-    const session = await sessionResponse.json();
-    if (!session.authenticated || session.profile?.role !== "IreiAdmin") {
-      document.getElementById("staff-sign-in").classList.remove("hidden");
-      const error = new Error(session.authenticated
-        ? "This internal V2 dashboard requires an IREI administrator account. Sign in to the portal with that account, then retry."
-        : "Sign in to the portal in another tab, then return here and retry. Your selected workbook has been kept.");
-      error.requiresStaffSignIn = true;
-      throw error;
-    }
-    document.getElementById("staff-sign-in").classList.add("hidden");
-    if (!["GET", "HEAD"].includes((options.method || "GET").toUpperCase())) headers.set("X-CSRF-Token", session.csrf);
-  } else if (!sessionResponse.ok && sessionResponse.status !== 404) {
-    throw new Error("Could not check your sign-in. Please retry.");
-  }
-  const response = await fetch(url, { ...options, credentials: "same-origin", headers });
-  // Retry only an explicit CSRF rejection issued before the handler can mutate state.
-  if (response.status === 403) {
-    const rejected = await response.clone().json().catch(() => ({}));
-    if (rejected.code === "csrf_required") {
-      if (retryCsrf) return staffFetch(url, options, false);
-      document.getElementById("staff-sign-in").classList.remove("hidden");
-      const error = new Error("Your sign-in could not be confirmed. Sign out of the portal and sign back in in another tab, then retry. Your selected workbook has been kept.");
-      error.requiresStaffSignIn = true;
-      throw error;
-    }
-  }
-  return response;
+// V2 deliberately operates without portal sign-in, staff keys or session confirmation.
+async function staffFetch(url, options = {}) {
+  return fetch(url, { ...options, credentials: "omit" });
 }
 
 async function api(url, options = {}) {

@@ -4,13 +4,13 @@ The root workspace `/` now presents seven views matching the supplied visual str
 
 ## Upload and present
 
-1. Sign in at `/evidence.html` with the existing IREI administrator account.
+1. Open `/` directly. V2 requires no sign-in, access key or session confirmation.
 2. Open `/`, select **Upload / Update**, and choose a populated V4.2 assessment, one original cash-flow model, or a mapped V4.2 assessment together with its source workbook(s).
 3. Leave the reporting year blank to retain the mapped workbook's selected year. Original-model intake selects the current April–March fiscal year when it falls within the source horizon. The year control can change the view after upload.
 4. Select **Present** to hide the toolbar. Escape restores it. Every metric and View details control remains usable.
 5. On Reports, use **Print all pages / Save PDF** to print the complete seven-view internal draft, or download the complete analysis record as JSON.
 
-Sign-in can occur in a second tab without losing selected workbooks. A request failure clears the loading state and enables retry. An anonymous account, client role or scoped analyst role cannot use the global internal board APIs while the evidence portal is enabled.
+V2 does not contact `/api/evidence/session` and its requests omit portal cookies. A request failure clears the loading state and enables retry without discarding selected workbooks. V2 uploads, assessment links, workflow mutations, workbook lists and downloads are accessible without authentication. The separate evidence portal remains authenticated and continues to enforce roles and CSRF protection. Its protections do not extend to the open V2 APIs.
 
 ## Source selection and calculations
 
@@ -62,7 +62,7 @@ Original files, source SHA-256 checksums, the dated metric baseline and versione
 
 ## Deployment and verification
 
-Publish the updated project from source and upload the publish output to the existing SmarterASP site. Preserve the live `App_Data`, configured data root and existing portal configuration. Do not deploy the stale checked-in `smarterasp-publish` snapshot. No new key or portal account is required for an existing IREI administrator.
+Publish the updated project from source and upload the publish output to the existing SmarterASP site. Preserve the live `App_Data`, configured data root and existing portal configuration. Do not deploy the stale checked-in `smarterasp-publish` snapshot. V2 needs no account or key. Preserve the existing portal configuration for the separate protected portal.
 
 ```bash
 dotnet build IreiMvp.sln -c Release
@@ -71,4 +71,4 @@ node --check src/IreiMvp.Web/wwwroot/board.js
 python tests/smoke_board.py
 ```
 
-`BOARD_RAW_WORKBOOK` optionally points to the supplied original V18 file for paired-source and original-only tests. `BOARD_BROWSER_TEST=1` enables the end-to-end browser regression; `PLAYWRIGHT_MODULE` and `EVIDENCE_CHROME` can specify local installed test dependencies. Browser checks cover real uploads, cross-tab sign-in/file retention, all seven layouts, evidence/property drill-through, action persistence, option testing, print output and mobile widths.
+`BOARD_RAW_WORKBOOK` optionally points to the supplied original V18 file for paired-source and original-only tests. `BOARD_BROWSER_TEST=1` enables the end-to-end browser regression; `PLAYWRIGHT_MODULE` and `EVIDENCE_CHROME` can specify local installed test dependencies. Browser checks cover real uploads, anonymous upload without session requests and file retention, all seven layouts, evidence/property drill-through, action persistence, option testing, print output and mobile widths.
