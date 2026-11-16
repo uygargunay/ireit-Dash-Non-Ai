@@ -37,6 +37,7 @@ jobs:
 
       - name: JavaScript syntax
         run: |
+          node --check src/IreiMvp.Web/wwwroot/board.js
           node --check src/IreiMvp.Web/wwwroot/app.js
           node --check src/IreiMvp.Web/wwwroot/admin.js
           node --check src/IreiMvp.Web/wwwroot/v3.js
@@ -52,6 +53,9 @@ jobs:
 
       - name: API smoke test
         run: bash tests/smoke_api.sh
+
+      - name: V2 board upload and analysis integration
+        run: python tests/smoke_board.py
 
       - name: V4 workbook and calculation parity
         run: dotnet run --configuration Release --project tests/IreiMvp.V4.Tests -- .

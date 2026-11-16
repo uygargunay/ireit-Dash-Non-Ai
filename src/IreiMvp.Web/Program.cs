@@ -25,6 +25,8 @@ public static class Program
         builder.Services.AddSingleton<V3FinancialStore>();
         builder.Services.AddSingleton<V4WorkbookImporter>();
         builder.Services.AddSingleton<V4Store>();
+        builder.Services.AddSingleton<BoardWorkbookImporter>();
+        builder.Services.AddSingleton<BoardStore>();
         builder.Services.AddSingleton<IntakeExtractor>();
         builder.Services.AddSingleton<IntakeExporter>();
         builder.Services.AddSingleton<IntakeStore>();
@@ -34,6 +36,7 @@ public static class Program
         app.UseDefaultFiles();
         app.UseStaticFiles();
         app.MapV4();
+        app.MapBoard();
         app.MapIntake();
         app.MapEvidencePortal();
         if (app.Configuration.GetValue<bool>("Evidence:Enabled"))
