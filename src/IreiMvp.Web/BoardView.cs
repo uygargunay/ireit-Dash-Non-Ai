@@ -32,6 +32,20 @@ public static class BoardView
             sourcePayments.Select(r => r.Text("Property_ID")).Distinct().Count() == plannedIds.Count &&
             sourcePayments.All(r => !r.Formulas.ContainsKey("Total_Debt_Service") && r.Number("Total_Debt_Service") >= 0))
             newPaymentTotal = sourcePayments.Sum(r => r.Number("Total_Debt_Service"));
+        var termStart = int.TryParse(year.Length >= 4 ? year[..4] : "", out var fiscalStart) ? new DateTime(fiscalStart, 4, 1) : DateTime.MinValue;
+        var termEnd = termStart == DateTime.MinValue ? termStart : termStart.AddYears(2);
+        var terms = record.HistoricalProperties.Where(r => DateTime.TryParseExact(r.Text("Maturity"), "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                DateTimeStyles.None, out var date) && date >= termStart && date < termEnd)
+            .GroupBy(r => (r.Text("Property_ID"), r.Text("Instrument"), r.Text("Maturity")))
+            .Select(g => new { PropertyId = g.Key.Item1, Instrument = g.Key.Item2, Maturity = g.Key.Item3,
+                Balance = g.Select(r => r.Text("Balance")).Where(v => v.Length > 0).Distinct().Count() == 1 ? g.First(r => r.Text("Balance").Length > 0).Number("Balance") : null,
+                SourceDate = string.Join("; ", g.Select(r => r.Text("Date")).Where(v => v.Length > 0).Distinct()),
+                Sources = g.Select(r => r.Text("Source_File") + " · " + r.Text("Maturity_Source")).Distinct().ToArray() }).OrderBy(r => r.Maturity).ToArray();
+        decimal? HistoricalBalance(bool nextYear)
+        {
+            var group = terms.Where(t => (string.CompareOrdinal(t.Maturity, termStart.AddYears(1).ToString("yyyy-MM-dd")) >= 0) == nextYear).ToArray();
+            return group.Length > 0 && group.All(t => t.Balance >= 0) ? group.Sum(t => t.Balance) : null;
+        }
         var findings = new List<BoardFinding>();
         void Finding(string id, string title, string meaning, string tone, string metric, string needed) => findings.Add(new(id, title, meaning, tone, metric, needed));
         if (M("CASH_AFTER_DEBT")?.Value is decimal cash) Finding("CURRENT-CASH", cash >= 0 ? "Current income exceeds loan payments" : "Current income does not cover loan payments",
@@ -39,10 +53,12 @@ public static class BoardView
         foreach (var y in shortfallYears) Finding("COVERAGE-" + y, "Future coverage falls below break-even", $"{y}: {F("DSCR", y)} coverage and {F("CASH_SHORTFALL", y)} annual cash shortfall.", "red", M("DSCR", y)!.Id, "Updated income, subsidy commitments and lender payment schedules");
         if (M("PLACEHOLDER_SUBSIDY", full)?.Value > 0) Finding("SUBSIDY", "The plan relies on placeholder subsidy",
             $"{full}: {F("PLACEHOLDER_SUBSIDY", full)}/year is labeled placeholder in the source. Removing it produces {F("SHORTFALL_EX_PLACEHOLDER", full)} shortfall and {F("DSCR_EX_PLACEHOLDER", full)} coverage.", "red", M("SHORTFALL_EX_PLACEHOLDER", full)!.Id, "Written subsidy commitments: amount, duration and conditions");
-        Finding("RENEWAL", "Current mortgage terms are not established", "Payment aggregates and planning selectors do not establish actual loan maturities. Obtain current lender statements before relying on renewal timing.", "amber", "", "Current balances, terms and renewal outcomes");
+        Finding("RENEWAL", "Current mortgage terms are not established", terms.Length > 0 ?
+            terms.Length + " historical dated records fall in the current/next fiscal-year window; " + Money(HistoricalBalance(false)) + " historical current-year balances. Current renewal outcomes remain unconfirmed." :
+            "Payment aggregates and planning selectors do not establish actual loan maturities. Obtain current lender statements before relying on renewal timing.", "amber", "", "Current balances, terms and renewal outcomes");
         var reserveBreaks = record.Checks.Where(c => c.Area == "Reserve opening continuity" && c.State == "Review required").ToArray();
         if (reserveBreaks.Length > 0) Finding("RESERVE-RESET", "Opening cash does not carry forward", $"{reserveBreaks[0].Period}: unexplained reserve reset of {Money(reserveBreaks[0].Difference)}. This is separate from annual operating cash flow.", "amber", "", "Bank reconciliation and transfers explaining the reset");
-        var proposals = new List<BoardProposal> { new("P-TERMS", "Confirm near-term mortgages", "Terms not confirmed", "CFO / lender", "First evidence request", "RENEWAL") };
+        var proposals = new List<BoardProposal> { new("P-TERMS", "Confirm near-term mortgages", terms.Length > 0 ? Money(HistoricalBalance(false)) + " historical" : "Terms not confirmed", "CFO / lender", "First evidence request", "RENEWAL") };
         if (M("PLACEHOLDER_SUBSIDY", full)?.Value > 0) proposals.Add(new("P-SUBSIDY", "Secure project subsidy", F("PLACEHOLDER_SUBSIDY", full) + "/year", "CEO", "Before relying on FY" + full[^2..], "SUBSIDY"));
         if (M("CASH_SHORTFALL", full)?.Value > 0) proposals.Add(new("P-RESIDUAL", "Close residual annual cash gap", Annual(M("CASH_SHORTFALL", full)?.Value), "CFO / management", "FY" + full[^2..] + " source plan", "COVERAGE-" + full));
         proposals.Add(new("P-RULES", "Set mission and reserve rules", "Limits unconfirmed", "Board", "Before financing approval", "RESERVE-PERMISSION"));
@@ -75,12 +91,14 @@ public static class BoardView
             ExecutiveFindings = findings.Select(f => f with { Meaning = f.Id switch {
                 "CURRENT-CASH" => $"FY{year[^2..]}: {F("CASH_AFTER_DEBT")} cash after loans; {F("DSCR")} coverage.",
                 "SUBSIDY" => $"Without placeholder subsidy: FY{full[^2..]} cash gap {F("SHORTFALL_EX_PLACEHOLDER", full)}; coverage {F("DSCR_EX_PLACEHOLDER", full)}.",
-                "RENEWAL" => "Current mortgage terms and renewal outcomes are unconfirmed. Obtain lender statements first.",
+                "RENEWAL" => terms.Length > 0 ? terms.Length + " historical mortgage dates in the current/next fiscal-year window; " + Money(HistoricalBalance(false)) + " historical current-year balances. Confirm renewal outcomes." : "Current mortgage terms and renewal outcomes are unconfirmed. Obtain lender statements first.",
                 _ => f.Id.StartsWith("COVERAGE-") ? f.Meaning.Replace(f.Id[9..], "FY" + f.Id[^2..]) : f.Meaning } }),
             Proposals = proposals, ProposedTracker = proposals.Concat(additional),
             Missing = missing, Options = options, Checks = record.Checks,
             Sources = record.Sources.Select(s => new { s.Name, s.Sha256, s.Kind }),
             HistoricalProperties = record.HistoricalProperties,
+            HistoricalTerms = new { Records = terms, Count = terms.Length, CurrentBalance = HistoricalBalance(false), NextBalance = HistoricalBalance(true),
+                State = "Historical supporting records; current lender terms and renewal outcomes unconfirmed" },
             ControllingSource = record.Sources.FirstOrDefault(s => s.Kind == "Mapped assessment") ?? record.Sources.FirstOrDefault(s => s.Kind == "Original source model"),
             Summary = new { CurrentYear = year, FullYear = full, Buildings = properties.Length,
                 Operating = properties.Count(p => !p.Text("Operating_Status").StartsWith("Planned", StringComparison.OrdinalIgnoreCase)), Planned = plannedIds.Count,
@@ -92,7 +110,7 @@ public static class BoardView
                 ReserveBreaks = reserveBreaks.Length, CheckPass = record.Checks.Count(c => c.State == "Pass"), CheckReview = record.Checks.Count(c => c.State == "Review required"), CheckMissing = record.Checks.Count(c => c.State == "Not testable"),
                 Cities = properties.Select(p => p.Text("City")).Concat(record.HistoricalProperties.GroupBy(r => r.Text("Property_ID"))
                     .Where(g => g.Select(r => r.Text("City")).Where(c => c.Length > 0).Distinct().Count() == 1)
-                    .Select(g => g.First(r => r.Text("City").Length > 0).Text("City"))).Where(s => s.Length > 0).Distinct(),
+                    .Select(g => g.First(r => r.Text("City").Length > 0).Text("City"))).Where(s => s.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase),
                 HistoricalDetailState = record.HistoricalProperties.Count > 0 ? "Historical supporting observations retain their file, cell and source date. They do not establish current occupancy or lender terms." : "Historical property summary not mapped. Upload its table alongside the financial workbook to populate listed units, locations and historical loan records.",
                 DisplayYears = allYears.Where(y => M("DEBT_SERVICE", y)?.Value.HasValue == true).ToArray() },
             Formatted = new { ResidualAnnual = Annual(M("CASH_SHORTFALL", full)?.Value), PlaceholderAnnual = F("PLACEHOLDER_SUBSIDY", full),

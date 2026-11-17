@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace IreiMvp.Web;
 
@@ -33,14 +34,20 @@ public static class BoardSupportingImporter
             if (properties.Any(p => p.Id == note.Text("Property_ID")))
                 foreach (var key in new[] { "Alias", "Source_Alias", "Property_Name", "Source_Property_Name" })
                     Alias(note.Text(key), note.Text("Property_ID"));
+        foreach (var note in assessment.Rows("12_SOURCE_NOTES").Where(r => r.Text("Related_Period") == "Name/address matching only"))
+            if (properties.Any(p => p.Id == note.Text("Property_ID")))
+                foreach (var alias in note.Text("Raw_Note_Text").Split(';', '/', '|')) Alias(alias.Trim(), note.Text("Property_ID"));
         string Role(string header) => N(header) switch
         {
             "PROPERTY" or "PROPERTYNAME" or "BUILDING" or "BUILDINGNAME" or "PROPERTYID" or "PROPERTYALIAS" or "NAME" => "Property",
             "UNITS" or "TOTALUNITS" or "LISTEDUNITS" or "NUMBEROFUNITS" or "NOOFUNITS" or "2025LISTEDUNITS" => "Units",
             "CITY" or "MUNICIPALITY" => "City",
             "ADDRESS" or "STREETADDRESS" or "PROPERTYADDRESS" => "Address",
-            "MATURITY" or "MATURITYDATE" or "MORTGAGEMATURITY" or "MORTGAGEMATURITYDATE" or "RENEWALDATE" or "TERMENDDATE" => "Maturity",
+            "MATURITY" or "MATURITYDATE" or "MORTGAGEMATURITY" or "MORTGAGEMATURITYDATE" or "RENEWALDATE" or "TERMENDDATE" or "MORTGAGETERMDATE" => "Maturity",
             "BALANCE" or "LOANBALANCE" or "MORTGAGEBALANCE" or "OUTSTANDINGPRINCIPAL" => "Balance",
+            var label when Regex.IsMatch(label, @"^MORTGAGEBALANCEOUTSTANDING(?:20\d{2})?$") => "Balance",
+            "MORTGAGE" or "LENDER" or "INSTRUMENT" => "Instrument",
+            "BUILDDATE" or "YEARBUILT" => "Build_Date",
             "ASOF" or "ASOFDATE" or "SOURCEDATE" or "BALANCEDATE" => "Date",
             _ => ""
         };
@@ -53,6 +60,17 @@ public static class BoardSupportingImporter
         }
         foreach (var sheet in book.Sheets.Values)
         {
+            var sheetDate = ""; var sheetDateSource = "";
+            // Explicit update labels, not upload time or a year inferred from the file name.
+            for (var r = 1; r <= Math.Min(sheet.MaxRow, 10); r++)
+                for (var c = 1; c < sheet.MaxColumn; c++)
+                    if (N(BoardWorkbookImporter.Text(sheet, r, c)) is "UPDATED" or "ASOF" or "SOURCEDATE")
+                    {
+                        var raw = Value(sheet, r, c + 1, "Date");
+                        raw = Regex.Replace(raw, @"(\d{1,2})/(\d{4})", "$1, $2");
+                        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+                        { sheetDate = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture); sheetDateSource = BoardWorkbookImporter.Location(sheet.Name, r, c + 1); }
+                    }
             var headers = Enumerable.Range(1, Math.Min(sheet.MaxRow, 100)).Select(r => new {
                 Row = r, Columns = Enumerable.Range(1, sheet.MaxColumn).Select(c => (Col: c, Role: Role(BoardWorkbookImporter.Text(sheet, r, c))))
                     .Where(c => c.Role.Length > 0).ToArray()
@@ -64,18 +82,28 @@ public static class BoardSupportingImporter
                 { findings.Add(fileName + " · " + sheet.Name + ": repeated supporting column labels require mapping; no values selected."); continue; }
                 var columns = header.Columns.ToDictionary(c => c.Role, c => c.Col);
                 var end = headers.Where(h => h.Row > header.Row).Select(h => h.Row - 1).DefaultIfEmpty(sheet.MaxRow).Min();
+                string? previousProperty = null; var previousLabel = "";
                 for (var r = header.Row + 1; r <= end; r++)
                 {
                     var label = BoardWorkbookImporter.Text(sheet, r, columns["Property"]);
-                    if (label.Length == 0 || N(label) is "TOTAL" or "TOTALS" or "GRANDTOTAL") continue;
-                    var key = N(label);
-                    if (!names.TryGetValue(key, out var matches) || matches.Count != 1)
-                    { findings.Add(fileName + " · " + BoardWorkbookImporter.Location(sheet.Name, r, columns["Property"]) + ": unmatched or ambiguous property '" + label + "'; no property was created."); continue; }
+                    if (N(label) is "TOTAL" or "TOTALS" or "GRANDTOTAL") { previousProperty = null; continue; }
+                    var continuation = label.Length == 0 && previousProperty is not null && columns.TryGetValue("Instrument", out var instrumentColumn) &&
+                        BoardWorkbookImporter.Text(sheet, r, instrumentColumn).Length > 0;
+                    if (label.Length == 0 && !continuation) { previousProperty = null; continue; }
+                    string propertyId;
+                    if (continuation) propertyId = previousProperty!;
+                    else
+                    {
+                        if (!names.TryGetValue(N(label), out var matches) || matches.Count != 1)
+                        { previousProperty = null; findings.Add(fileName + " · " + BoardWorkbookImporter.Location(sheet.Name, r, columns["Property"]) + ": unmatched or ambiguous property '" + label + "'; no property was created."); continue; }
+                        propertyId = matches.Single(); previousProperty = propertyId; previousLabel = label;
+                    }
                     var fields = new List<(string Key, string Value)> {
-                        ("Property_ID", matches.Single()), ("Source_File", fileName), ("Source_SHA256", book.Sha256),
-                        ("Source_Label", label), ("Review_State", "Historical supporting observation; current evidence unconfirmed"),
+                        ("Property_ID", propertyId), ("Source_File", fileName), ("Source_SHA256", book.Sha256),
+                        ("Source_Label", continuation ? previousLabel : label), ("Review_State", "Historical supporting observation; current evidence unconfirmed"),
                         ("Source_Location", BoardWorkbookImporter.Location(sheet.Name, r, columns["Property"]))
                     };
+                    if (!columns.ContainsKey("Date") && sheetDate.Length > 0) { fields.Add(("Date", sheetDate)); fields.Add(("Date_Source", sheetDateSource)); }
                     foreach (var (role, col) in columns.Where(c => c.Key != "Property"))
                     {
                         var value = Value(sheet, r, col, role);
@@ -84,6 +112,10 @@ public static class BoardSupportingImporter
                         fields.Add((role, value));
                         fields.Add((role + "_Source", BoardWorkbookImporter.Location(sheet.Name, r, col)));
                     }
+                    var build = fields.FirstOrDefault(f => f.Key == "Build_Date").Value;
+                    var asOf = fields.FirstOrDefault(f => f.Key == "Date").Value;
+                    var plannedListing = decimal.TryParse(build, out var buildYear) && DateTime.TryParse(asOf, out var sourceDate) && buildYear > sourceDate.Year;
+                    fields.Add(("Listing_Kind", continuation ? "Loan continuation" : plannedListing ? "Planned listing" : "Historical listing"));
                     result.Add(BoardWorkbookImporter.Row("BOARD_HISTORICAL", "HIST-" + book.Sha256[..12] + "-" + result.Count, fields.ToArray()));
                 }
             }

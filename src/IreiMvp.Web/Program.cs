@@ -34,7 +34,17 @@ public static class Program
         var app = builder.Build();
         app.UseEvidenceProtection();
         app.UseDefaultFiles();
-        app.UseStaticFiles();
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            OnPrepareResponse = context =>
+            {
+                // Revalidate the application shell and scripts after a deployment so a cached
+                // eight-page shell cannot keep loading the prior entry point indefinitely.
+                var extension = Path.GetExtension(context.File.Name);
+                if (extension is ".html" or ".js" or ".css")
+                    context.Context.Response.Headers.CacheControl = "no-cache, max-age=0, must-revalidate";
+            }
+        });
         app.MapV4();
         app.MapBoard();
         app.MapIntake();
