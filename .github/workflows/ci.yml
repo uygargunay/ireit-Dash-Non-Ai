@@ -57,6 +57,9 @@ jobs:
       - name: V2 board upload and analysis integration
         run: python tests/smoke_board.py
 
+      - name: Historical supporting table regression
+        run: dotnet run --configuration Release --project tests/IreiMvp.Board.Tests
+
       - name: V4 workbook and calculation parity
         run: dotnet run --configuration Release --project tests/IreiMvp.V4.Tests -- .
 
