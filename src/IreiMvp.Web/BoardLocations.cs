@@ -4,8 +4,12 @@ namespace IreiMvp.Web;
 
 public sealed record BoardLocation(string PropertyId, string Name, string Address, decimal Latitude, decimal Longitude,
     string Source, string SourceDate, string State);
+public sealed record BoardOrganizationStatement(string Vision, string Mission, string Source);
 public sealed class BoardLocationCatalog
 {
+    public string Vision { get; set; } = "";
+    public string Mission { get; set; } = "";
+    public string StatementSource { get; set; } = "";
     public string Name { get; set; } = "";
     public string Source { get; set; } = "";
     public string CheckedDate { get; set; } = "";
@@ -30,6 +34,15 @@ public static class BoardLocations
             .Select(n => { using var stream = assembly.GetManifestResourceStream(n)!;
                 return JsonSerializer.Deserialize<BoardLocationCatalog>(stream, new JsonSerializerOptions(JsonSerializerDefaults.Web))!; }).ToArray();
     });
+
+    public static BoardOrganizationStatement? StatementFor(IEnumerable<BoardLocation> locations)
+    {
+        var sources = locations.GroupBy(l => l.Source).Where(g => g.Select(l => l.PropertyId).Distinct().Count() >= 3)
+            .Select(g => g.Key).ToHashSet(StringComparer.Ordinal);
+        var statements = Catalogs.Value.Where(c => sources.Contains(c.Source) && c.Vision.Length > 0 && c.Mission.Length > 0)
+            .Select(c => new BoardOrganizationStatement(c.Vision, c.Mission, c.StatementSource)).Distinct().ToArray();
+        return statements.Length == 1 ? statements[0] : null;
+    }
 
     public static BoardLocation[] Match(IEnumerable<V4Row> propertyRows, IEnumerable<BoardLocationCatalog>? catalogs = null)
     {

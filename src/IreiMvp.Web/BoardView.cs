@@ -14,6 +14,7 @@ public static class BoardView
         V4Metric? M(string c, string? y = null) => a.Metric(scope, y ?? year, c);
         string F(string c, string? y = null) => V4ViewService.Format(M(c, y));
         var properties = a.Rows("31_PROPERTY").Where(r => r.Text("Organization_ID") == a.OrganizationId && r.Text("Include_in_Assessment") == "Yes").DistinctBy(r => r.Id).ToArray();
+        var locations = BoardLocations.Match(properties);
         var exceptions = a.Rows("51_EXCEPTIONS").Where(r => r.Text("Assessment_ID") == a.AssessmentId).ToArray();
         var open = exceptions.Where(r => r.Text("Status") == "Open" && r.Text("Show_On_Evidence_Page") == "Yes").ToArray();
         var peak = allYears.Select(y => M("DEBT_SERVICE", y)).Where(m => m?.Value.HasValue == true).OrderByDescending(m => m!.Value).FirstOrDefault();
@@ -88,7 +89,8 @@ public static class BoardView
         options.Add(new { Name = "Do nothing", Amount = "$0 mitigation", Needs = "No prerequisite", Protects = "No current intervention", Risks = "Future shortfalls and unresolved terms remain" });
         return new {
             Illustrative = record.Illustrative,
-            Locations = BoardLocations.Match(properties),
+            Locations = locations,
+            OrganizationStatement = BoardLocations.StatementFor(locations),
             View = V4ViewService.Page(a, "P3"), Findings = findings,
             ExecutiveFindings = findings.Select(f => f with { Meaning = f.Id switch {
                 "CURRENT-CASH" => $"FY{year[^2..]}: {F("CASH_AFTER_DEBT")} cash after loans; {F("DSCR")} coverage.",
