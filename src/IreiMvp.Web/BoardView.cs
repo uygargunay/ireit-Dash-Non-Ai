@@ -87,6 +87,7 @@ public static class BoardView
         options.Add(new { Name = "Phase / delay development", Amount = "Not calculated", Needs = "Dated delay and cash-flow scenario", Protects = "May reduce timing exposure", Risks = "Fewer/later homes, lost income or higher costs" });
         options.Add(new { Name = "Do nothing", Amount = "$0 mitigation", Needs = "No prerequisite", Protects = "No current intervention", Risks = "Future shortfalls and unresolved terms remain" });
         return new {
+            Illustrative = record.Illustrative,
             View = V4ViewService.Page(a, "P3"), Findings = findings,
             ExecutiveFindings = findings.Select(f => f with { Meaning = f.Id switch {
                 "CURRENT-CASH" => $"FY{year[^2..]}: {F("CASH_AFTER_DEBT")} cash after loans; {F("DSCR")} coverage.",

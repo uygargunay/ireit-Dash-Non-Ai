@@ -81,3 +81,17 @@ python tests/smoke_board.py
 The financial page uses the compact three-column options summary, with the full five-column comparison on Risks & Options. The executive summary retains visible stewardship captions and prioritizes current cash, renewals, full-operation coverage and subsidy dependency. Updates only displays a separate management-action table when records exist. Evidence questions prefer the actual client question over a category label. Browser assets have a new cache version.
 
 Validation limits for this revision: JavaScript syntax and isolated renderer checks can be run without a browser. The .NET tests include mapped-reference summary counts and synthetic historical-source failure cases. The actual property-summary layout and live pixel comparison still need runtime validation; these changes do not establish an exact visual match.
+
+## Explicit illustrative workbook inputs
+
+Workbooks may include an `Illustrative inputs` sheet with `Assumption`, `Value`, `Unit`, and `Status` headers in columns A–D. Only unique literal numeric values marked exactly `Illustrative` are accepted. Rates must be between zero and one; counts must be nonnegative integers. Formula caches, duplicate labels, invalid values, or status changes to Verified are rejected.
+
+Illustrative sections in `Executive Summary`, `Portfolio & Mission`, `Mission and Stewardship`, and `Risks and Options` are displayed when an A-column heading ends in `· Illustrative` and the following A-column cell supplies the body. Each section retains its file and source cell. All text is escaped. Numeric scenario cards and monthly-payment renewal calculations use the separately labelled inputs; narrative sections remain the workbook's supplied commentary and can contain differing placeholders.
+
+The presentation retains the existing financial metrics, actual evidence gaps, baseline, recorded decisions and financing limitations. An illustrative property value is not borrowing capacity. A proposed cash floor or board threshold does not establish permission. The source-backed location labels display as a schematic with remaining source-property slots explicitly marked address pending, not as invented geographic coordinates.
+
+Existing assessment URLs recover these optional inputs from the retained controlling workbook after deployment. This read-time enrichment does not rewrite the saved baseline, financial facts or assessment version. Workbooks without the optional sheet keep their existing presentation.
+
+To publish from Visual Studio, open the solution on the updated source branch, build Release, then publish `IreiMvp.Web` using the existing profile for the existing site. Preserve live App_Data, the configured data root and server configuration. Do not enable removal of additional destination files. The browser asset version changes with this update. Reload the existing assessment URL after publishing.
+
+Validation: `node tests/board_illustrative.cjs`, `dotnet run -c Release --project tests/IreiMvp.Board.Tests`, and the existing board integration suite. The illustrative tests use invented observations and do not embed uploaded organization data in source control.
