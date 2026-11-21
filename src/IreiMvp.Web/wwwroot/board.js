@@ -81,10 +81,27 @@
     const m = metric(code, full); const tone = m?.value == null || code === 'RESERVE_CLOSING' ? 'amber' : code.includes('SHORTFALL') && m.value > 0 || code.includes('DSCR') && m.value < 1 ? 'red' : code === 'DEBT_SERVICE' ? 'navy' : code === 'DSCR' || code === 'CASH_SHORTFALL' ? 'green' : 'teal';
     return tile(label, format(m), caption, ic, tone, m?.id);
   }
+  function portfolioMissionTiles() {
+    const definitions = [
+      { label:'Average rent', key:'Headline average rent', sheet:'37_UNIT_RENT', icon:'money', missing:'Actual rent rolls needed',
+        display:monthly, caption:()=>`Versus ${monthly(iv('Market rent comparator'))} market` },
+      { label:'Homes protected', key:'Existing homes', sheet:'35_AGREEMENTS', icon:'shield', missing:'Agreements needed',
+        display:num, caption:()=>`Protection goal; about ${num(iv('Protected homes after 2028 low'))}–${num(iv('Protected homes after 2028 high'))} after 2028` },
+      { label:'Good condition', key:'Good condition', sheet:'38_ASSET_CONDITION', icon:'building', missing:'Current reports needed',
+        display:num, caption:()=>`${num(iv('Retrofit needed'))} need retrofit; ${num(iv('Near end of life'))} near end of life` },
+      { label:'People housed', key:'People housed headline', sheet:'39_MISSION_SERVICES', icon:'people', missing:'Resident records needed',
+        display:n=>'About '+num(n), caption:()=>`Including about ${num(iv('Children headline'))} children` }
+    ];
+    return definitions.map(d=>{
+      const value=iv(d.key);
+      return value == null ? tile(d.label,rows(d.sheet).length?'Review records':'No data',d.missing,d.icon,'amber') :
+        tile(d.label,d.display(value),d.caption()+' · Illustrative',d.icon);
+    });
+  }
   function tiles() {
     let list;
     if (page === 'P1') list = [tile('Buildings', count(S().buildings), 'Accepted working count', 'building'), mt('HOMES_TOTAL','Homes projected',occupancyCaption(),'home'), mt('NOI','Income after costs','Before loan payments','chart'), mt('DEBT_SERVICE','Loan payments','Principal + interest','bank'), mt('DSCR','Coverage','Income per $1 due','shield'), mt('RESERVE_CLOSING','Closing reserve',reserveCaption(),'money'), mt('CASH_AFTER_DEBT','Cash after loans','Projected source cash','money')];
-    else if (page === 'P2') list = [tile('Properties',count(S().buildings),'Aliases retain stable IDs','building','green'),mt('HOMES_TOTAL','Homes projected',occupancyCaption(),'home'),tile('Homes planned',count(S().plannedHomes),'By '+fy(S().plannedBy),'building'),...['Average rent','Homes protected','Good condition','People housed'].map((l,i)=>tile(l,rows(['37_UNIT_RENT','35_AGREEMENTS','38_ASSET_CONDITION','39_MISSION_SERVICES'][i]).length?'Review records':'No data',['Actual rent rolls needed','Agreements needed','Current reports needed','Resident records needed'][i],['money','shield','building','people'][i],'amber'))];
+    else if (page === 'P2') list = [tile('Properties',count(S().buildings),'Aliases retain stable IDs','building','green'),mt('HOMES_TOTAL','Homes projected',occupancyCaption(),'home'),tile('Homes planned',count(S().plannedHomes),'By '+fy(S().plannedBy),'building'),...portfolioMissionTiles()];
     else if (page === 'P4') list = [tile('Source records',count(S().sourceDocuments || S().uploadedFiles),`${S().uploadedFiles} uploaded file(s)`,'document'),tile('Figures checked','Mapped','Traced to source cells','shield','green'),tile('Buildings covered',count(S().buildings),'Working portfolio scope','building'),tile('Years covered',`${fy(data.financialOutlook[0]?.year)}–${fy(data.financialOutlook.at(-1)?.year)}`,'History and source forecast','clock'),tile('Open questions',count(S().open),'Actual exception rows','document','red'),tile('Closed / accepted',count(S().resolved+S().accepted),`${S().resolved} resolved; ${S().accepted} accepted`,'shield','green'),tile('Rent rolls',S().rentRollState,'Actual evidence required','home','amber')];
     else if (page === 'P5') list = [mt('CASH_SHORTFALL','Current shortfall','Current source plan','shield'),mt('PLACEHOLDER_SUBSIDY','Placeholder subsidy','Annual future source assumption','money',true),tile('Forward below 1x',`${S().belowOne} of ${S().forwardPeriods}`,'Full precision coverage','chart','red'),tile('New development payments',F().newPayments,'Annual service at full operation','bank'),mt('RESERVE_CLOSING','Closing reserve',reserveCaption(),'money'),tile('Mortgage terms',iv('New mortgage rate')!=null?num(iv('New mortgage rate')*100,1)+'% assumed':payload.historicalTerms?.count?payload.historicalTerms.count+' records':'Not established',iv('New mortgage rate')!=null?num(iv('Amortization'))+'-year amortization; '+num(iv('First term'))+'-year term · Illustrative':'Historical; current statements needed','clock','amber'),mt('SHORTFALL_EX_PLACEHOLDER','No-subsidy '+fy(S().fullYear),'Annual cash gap','shield',true)];
     else if (page === 'P6') list = [tile('Current record',data.context.sourceVersion || 'Working','Original inputs retained','document'),tile('Reporting year',fy(S().currentYear),metric('NOI')?.scenario || 'Source plan','clock'),tile('Open exceptions',count(S().open),'Register status retained','document','red'),tile('Actions open',rows('48_ACTIONS').length ? count(rows('48_ACTIONS').filter(r=>field(r,'Status')!=='Done').length) : 'Not recorded','Actual records only','shield','amber'),tile('Decisions',rows('49_DECISIONS').length ? count(rows('49_DECISIONS').length) : 'Not recorded','Board records required','shield','amber'),tile('Owners','Proposed roles','Confirm owners and dates','people'),tile('Next review','No date','Set by the organization','clock','amber')];
