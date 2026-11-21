@@ -61,3 +61,23 @@ illustrationBook.Sheets["Illustrative inputs"].Cells["D9"] = new() { Value = "Il
 illustrationBook.Sheets["Illustrative inputs"].Cells["B10"] = new() { Value = 2m };
 try { BoardIllustrativeImporter.Read(illustrationBook, "invalid.xlsx"); throw new Exception("Invalid vacancy accepted"); }
 catch (InvalidDataException) { Check(true, "Out-of-range illustrative rates rejected"); }
+
+var geoCatalog = new BoardLocationCatalog { Source = "https://example.test/buildings", CheckedDate = "2026-11-21", Locations = [
+    new() { Name = "Example North", Aliases = ["North alias"], Address = "10 North Road, Example", Latitude = 49.3m, Longitude = -123.1m },
+    new() { Name = "Example East", Address = "20 East Road, Example", Latitude = 49.2m, Longitude = -123m },
+    new() { Name = "Example South", Address = "30 South Road, Example", Latitude = 49.1m, Longitude = -122.9m }
+] };
+V4Row GeoProperty(string id, string name, string address = "") => BoardWorkbookImporter.Row("31_PROPERTY", id, ("Property_Name", name), ("Address", address));
+var geoProperties = new[] { GeoProperty("N", "North alias"), GeoProperty("E", "Example East"), GeoProperty("S", "Example South") };
+var locations = BoardLocations.Match(geoProperties, [geoCatalog]);
+Check(locations.Length == 3 && locations.Single(l => l.PropertyId == "N").Address.StartsWith("10 North"), "Public map matches retain property identity and explicit aliases");
+Check(locations.All(l => l.Source == geoCatalog.Source && l.State == "Public address · review match"), "Map source and review state retained without claiming verified evidence");
+Check(BoardLocations.Match([geoProperties[0]], [geoCatalog]).Length == 0, "An isolated building name cannot identify a public organization register");
+Check(BoardLocations.Match([GeoProperty("N", "Different name", "10 North Road, Example")], [geoCatalog]).Length == 1, "An exact address can resolve one known public location");
+Check(!BoardLocations.Match([GeoProperty("N", "North alias", "Conflicting source address"), geoProperties[1], geoProperties[2]], [geoCatalog]).Any(l => l.PropertyId == "N"), "A conflicting supplied address is never replaced by a public name match");
+var conflictCatalog = new BoardLocationCatalog { Source = "https://example.test/other", Locations = [
+    new() { Name = "Example North", Address = "Different address", Latitude = 49m, Longitude = -123m },
+    geoCatalog.Locations[1], geoCatalog.Locations[2]
+] };
+Check(!BoardLocations.Match([GeoProperty("N", "Example North"), geoProperties[1], geoProperties[2]], [geoCatalog, conflictCatalog]).Any(l => l.PropertyId == "N"), "Conflicting public coordinates are withheld");
+Check(geoProperties[0].Text("Address") == "" && assessment.Facts.Count == 0, "Public locations do not rewrite source properties or financial facts");

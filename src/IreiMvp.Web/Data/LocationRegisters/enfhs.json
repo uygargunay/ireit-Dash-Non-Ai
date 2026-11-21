@@ -1,0 +1,132 @@
+{
+  "name": "Entre Nous Femmes Housing Society public building register",
+  "source": "https://enfhs.ca/housing/our-buildings/",
+  "checkedDate": "2026-11-21",
+  "coordinateBasis": "Coordinates and addresses published in the source map; property matches require review.",
+  "locations": [
+    {
+      "name": "1656 Adanac Street Project",
+      "address": "1656 Adanac Street, Vancouver, BC",
+      "latitude": 49.27733309377077,
+      "longitude": -123.07141875158837,
+      "aliases": [
+        "1656 Adanac Street Redevelopment",
+        "1656 ADANAC"
+      ]
+    },
+    {
+      "name": "450 Pacific Street Project",
+      "address": "450 Pacific Street, Vancouver, BC",
+      "latitude": 49.2731174998574,
+      "longitude": -123.12705815767147,
+      "aliases": [
+        "450 Pacific"
+      ]
+    },
+    {
+      "name": "800 Commercial Drive Project",
+      "address": "800 Commercial Drive, Vancouver, BC",
+      "latitude": 49.27727317289103,
+      "longitude": -123.07015134356588,
+      "aliases": [
+        "800 Commercial Drive, Vancouver",
+        "800 Commercial"
+      ]
+    },
+    {
+      "name": "Antkiw Court",
+      "address": "1534 E. 4th Avenue, Vancouver, BC",
+      "latitude": 49.26667399411594,
+      "longitude": -123.07278900000001,
+      "aliases": []
+    },
+    {
+      "name": "Beatrice Terrace",
+      "address": "1877 E. Georgia Street, Vancouver, BC",
+      "latitude": 49.27867624946998,
+      "longitude": -123.06616899995154,
+      "aliases": []
+    },
+    {
+      "name": "Capilano House",
+      "address": "1551 Bridgman Avenue, District of North Vancouver, BC",
+      "latitude": 49.32275462380258,
+      "longitude": -123.11129698712064,
+      "aliases": []
+    },
+    {
+      "name": "Constance Court",
+      "address": "2518 E. Hastings Street, Vancouver, BC",
+      "latitude": 49.281039343304826,
+      "longitude": -123.05386436839035,
+      "aliases": []
+    },
+    {
+      "name": "Evelyn Estates",
+      "address": "9155 – 136 A Street, Surrey, BC",
+      "latitude": 49.16896531269824,
+      "longitude": -122.8452419629607,
+      "aliases": []
+    },
+    {
+      "name": "Evergreen Apartments",
+      "address": "815 Fifth Avenue, New Westminster, BC",
+      "latitude": 49.209695499999995,
+      "longitude": -122.92335642545771,
+      "aliases": []
+    },
+    {
+      "name": "Jessica Place Project",
+      "address": "9883 – 140 Street, Surrey, BC",
+      "latitude": 49.18187509211904,
+      "longitude": -122.83581527188711,
+      "aliases": [
+        "Jessica Place"
+      ]
+    },
+    {
+      "name": "Margaret Heights",
+      "address": "1800 Rufus Drive, City of North Vancouver, BC",
+      "latitude": 49.324502326690265,
+      "longitude": -123.04258327621326,
+      "aliases": []
+    },
+    {
+      "name": "Murray Manor",
+      "address": "6435 Royal Oak Avenue, Burnaby, BC",
+      "latitude": 49.225973,
+      "longitude": -122.989262,
+      "aliases": []
+    },
+    {
+      "name": "Natalia Terrace",
+      "address": "3550 S.E. Marine Drive, Vancouver, BC",
+      "latitude": 49.20761615192931,
+      "longitude": -123.0286703644034,
+      "aliases": []
+    },
+    {
+      "name": "Newton Green",
+      "address": "12725-63 Avenue, Surrey, BC",
+      "latitude": 49.11755601913058,
+      "longitude": -122.86952869500037,
+      "aliases": []
+    },
+    {
+      "name": "Rosemary Green",
+      "address": "2880 - 152 Street, Surrey, BC",
+      "latitude": 49.05445003415065,
+      "longitude": -122.8008057318749,
+      "aliases": []
+    },
+    {
+      "name": "The Creek, Port Moody Project",
+      "address": "300 & 350 Angela Drive, Port Moody, BC",
+      "latitude": 49.27768305503832,
+      "longitude": -122.87477042742476,
+      "aliases": [
+        "Port Moody"
+      ]
+    }
+  ]
+}
