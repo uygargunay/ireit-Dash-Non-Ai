@@ -40,6 +40,7 @@ jobs:
           node --check src/IreiMvp.Web/wwwroot/board.js
           node --check src/IreiMvp.Web/wwwroot/board-illustrative.js
           node tests/board_illustrative.cjs
+          node tests/board_portfolio_tiles.cjs
           node --check src/IreiMvp.Web/wwwroot/app.js
           node --check src/IreiMvp.Web/wwwroot/admin.js
           node --check src/IreiMvp.Web/wwwroot/v3.js
