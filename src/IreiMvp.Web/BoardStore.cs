@@ -11,6 +11,7 @@ public sealed record BoardCheck(string Id, string Area, string Period, decimal? 
     decimal? Difference, string State, string Explanation, string Source);
 public sealed class BoardRecord
 {
+    public BoardIllustrativeData? Illustrative { get; set; }
     public V4Assessment Assessment { get; set; } = new();
     public List<BoardSource> Sources { get; set; } = [];
     public List<BoardCheck> Checks { get; set; } = [];
@@ -27,7 +28,22 @@ public sealed class BoardStore(BoardWorkbookImporter importer, XlsxWorkbookServi
     {
         if (!Guid.TryParseExact(id, "N", out _)) return null;
         var path = Path.Combine(Folder(id), "record.json");
-        return File.Exists(path) ? JsonSerializer.Deserialize<BoardRecord>(await File.ReadAllTextAsync(path, ct), Json) : null;
+        if (!File.Exists(path)) return null;
+        var record = JsonSerializer.Deserialize<BoardRecord>(await File.ReadAllTextAsync(path, ct), Json);
+        // Older assessments already retain their original upload. Enrich only the
+        // response so the existing link works after deployment, without rewriting
+        // its dated evidence, baseline, financial facts or version history.
+        if (record is not null && record.Illustrative is null)
+        {
+            var source = record.Sources.FirstOrDefault(s => s.Kind == "Mapped assessment") ??
+                record.Sources.FirstOrDefault(s => s.Kind == "Original source model");
+            if (source is not null && Path.GetFileName(source.StoredName) == source.StoredName)
+            {
+                var original = Path.Combine(Folder(id), source.StoredName);
+                if (File.Exists(original)) record.Illustrative = BoardIllustrativeImporter.Read(xlsx.Read(original), source.Name);
+            }
+        }
+        return record;
     }
     private async Task Save(BoardRecord record, CancellationToken ct)
     {
@@ -68,7 +84,8 @@ public sealed class BoardStore(BoardWorkbookImporter importer, XlsxWorkbookServi
             }
             V4CalculationEngine.Calculate(a);
             a.Baseline = new("BASE-" + id, a.AssessmentId, a.OrganizationId, a.CreatedUtc, a.Setting("CURRENT_FISCAL_YEAR"), a.Setting("PORTFOLIO_PROPERTY_ID"), a.MethodologyVersion, a.Metrics.ToArray());
-            var record = new BoardRecord { Assessment = a, Sources = sources };
+            var record = new BoardRecord { Assessment = a, Sources = sources,
+                Illustrative = BoardIllustrativeImporter.Read(snapshots[primary], sources[primary].Name) };
             for (var i = 0; i < sources.Count; i++)
                 if (sources[i].Kind == "Supporting property source")
                     record.HistoricalProperties.AddRange(BoardSupportingImporter.Read(a, snapshots[i], sources[i].Name, a.ImportFindings));

@@ -39,3 +39,25 @@ var view = JsonSerializer.SerializeToElement(BoardView.Build(new BoardRecord { A
 Check(view.GetProperty("HistoricalTerms").GetProperty("Count").GetInt32() == 1 &&
     view.GetProperty("HistoricalTerms").GetProperty("CurrentBalance").GetDecimal() == 100m, "Near-term historical screen excludes later loans");
 Check(assessment.Facts.Count == 0 && assessment.Rows("31_PROPERTY").Count() == 1, "Supporting observations never create financial inputs or additional properties");
+
+var illustrationBook = new WorkbookSnapshot { Sheets = new() {
+    ["Illustrative inputs"] = new() { Name = "Illustrative inputs", MaxRow = 11, MaxColumn = 4, Cells = new() {
+        ["A8"] = new() { Value = "Assumption" }, ["B8"] = new() { Value = "Value" }, ["C8"] = new() { Value = "Unit" }, ["D8"] = new() { Value = "Status" },
+        ["A9"] = new() { Value = "Existing homes" }, ["B9"] = new() { Value = 50m }, ["C9"] = new() { Value = "homes" }, ["D9"] = new() { Value = "Illustrative" },
+        ["A10"] = new() { Value = "Vacancy" }, ["B10"] = new() { Value = .1m }, ["C10"] = new() { Value = "rate" }, ["D10"] = new() { Value = "Illustrative" } } },
+    ["Executive Summary"] = new() { Name = "Executive Summary", MaxRow = 17, MaxColumn = 1, Cells = new() {
+        ["A15"] = new() { Value = "Example assumptions · Illustrative" }, ["A16"] = new() { Value = "Example scenario text <script> is content, never executable HTML." } } }
+} };
+var demo = BoardIllustrativeImporter.Read(illustrationBook, "synthetic-illustration.xlsx");
+Check(demo.Values.Count == 2 && demo.Values[0].Value == 50m && demo.Values.All(v => v.Status == "Illustrative"), "Only explicitly labelled illustrative assumptions are imported");
+Check(demo.Values[0].Source == "synthetic-illustration.xlsx · 'Illustrative inputs'!B9" && demo.Sections.Single().Page == "P1", "Scenario provenance retains workbook, cell and page");
+var demoView = JsonSerializer.SerializeToElement(BoardView.Build(new BoardRecord { Assessment = assessment, Illustrative = demo }));
+Check(demoView.GetProperty("Illustrative").GetProperty("Values").GetArrayLength() == 2 && assessment.Facts.Count == 0,
+    "Illustrative presentation never becomes verified evidence or financial facts");
+illustrationBook.Sheets["Illustrative inputs"].Cells["D9"] = new() { Value = "Verified" };
+try { BoardIllustrativeImporter.Read(illustrationBook, "invalid.xlsx"); throw new Exception("Unlabelled illustration accepted"); }
+catch (InvalidDataException) { Check(true, "Illustrative assumptions cannot be relabelled verified"); }
+illustrationBook.Sheets["Illustrative inputs"].Cells["D9"] = new() { Value = "Illustrative" };
+illustrationBook.Sheets["Illustrative inputs"].Cells["B10"] = new() { Value = 2m };
+try { BoardIllustrativeImporter.Read(illustrationBook, "invalid.xlsx"); throw new Exception("Invalid vacancy accepted"); }
+catch (InvalidDataException) { Check(true, "Out-of-range illustrative rates rejected"); }
